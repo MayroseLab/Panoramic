@@ -1,0 +1,12 @@
+name: jupyter
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - jupyterlab
+  - pandas
+  - numpy
+  - seaborn
+  - plotly
+  - biopython
+  - scipy=1.4.1

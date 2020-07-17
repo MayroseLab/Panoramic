@@ -1,0 +1,5 @@
+name: faSplit
+channels:
+  - bioconda
+dependencies:
+  - ucsc-fasplit

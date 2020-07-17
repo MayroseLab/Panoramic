@@ -1,0 +1,10 @@
+name: itaerative_map_to_pan
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - intervaltree
+  - biopython
+  - pafpy
+  - gffutils
+  - minimap2

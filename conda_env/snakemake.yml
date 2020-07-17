@@ -1,0 +1,9 @@
+name: snakemake 
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - python=3.7.3
+  - biopython
+  - snakemake=5.5.4
+

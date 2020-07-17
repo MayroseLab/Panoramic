@@ -1,0 +1,7 @@
+name: index_gff
+channels:
+  - bioconda
+dependencies:
+  - bedtools
+  - samtools
+  - tabix

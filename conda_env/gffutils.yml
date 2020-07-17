@@ -1,0 +1,6 @@
+name: gffutils
+channels:
+  - bioconda
+dependencies:
+  - gffutils
+  - biopython

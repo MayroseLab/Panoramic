@@ -1,0 +1,5 @@
+name: orthofinder2 
+channels:
+  - bioconda
+dependencies:
+  - orthofinder

@@ -1,0 +1,6 @@
+name: bdtools
+channels:
+  - bioconda
+dependencies:
+  - bedtools
+  - samtools

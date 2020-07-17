@@ -1,0 +1,7 @@
+name: GAWN
+channels:
+  - bioconda
+dependencies:
+  - gmap
+  - cufflinks
+  - blast

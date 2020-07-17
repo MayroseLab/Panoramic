@@ -1,0 +1,46 @@
+name: PGC_map_to_pan
+# input/output
+samples_info_file: 
+hq_genomes_info_file: 
+out_dir:
+
+# Reference genome 
+reference_name:
+reference_genome:
+reference_annotation:
+reference_proteins:
+name_attribute: ID
+id_simplify_function: "lambda x: x"
+
+# Reads pre processing (RPP)
+trimming_modules: "ILLUMINACLIP:/groups/itay_mayrose/nosnap/liorglic/Projects/PGCM/python/PGC_de_novo/test/test_data/NexteraPE-PE.fa:2:30:10 SLIDINGWINDOW:5:15 MINLEN:40"
+merge_min_overlap: 10
+merge_max_mismatch_ratio: 0.2
+
+# Assembly
+min_length: 500
+min_coverage: 2
+busco_set:
+
+# Annotation
+repeats_library:
+transcripts:
+proteins:
+annotation_config_templates:
+augustus_species:
+
+# Annotation filtration
+max_aed: 0.4
+similarity_threshold_proteins: 0.95
+
+# gene loss detection
+HQ_min_cov: 0.7
+LQ_min_cov: 0.4
+min_read_depth: 3
+
+# Environment
+queue:
+priority: 0
+ppn:
+max_ram:
+max_jobs:

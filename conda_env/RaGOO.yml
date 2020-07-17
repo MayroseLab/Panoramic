@@ -1,0 +1,9 @@
+name: RaGOO
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - minimap2
+  - python=3
+  - numpy
+  - intervaltree
