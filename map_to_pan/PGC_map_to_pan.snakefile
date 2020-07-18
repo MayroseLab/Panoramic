@@ -57,7 +57,7 @@ onerror:
 #                RULES              |
 #------------------------------------
 
-localrules: all, prep_liftover_chunks_tsv, prep_annotation_chunks_tsv, prep_liftover_yaml, prep_annotation_yaml, collect_HQ_mapping_bams, collect_LQ_mapping_bams
+localrules: all, prep_annotation_chunks_tsv, prep_annotation_yaml 
 
 n_samples = len(config['samples_info'])
 last_sample = list(config['samples_info'].keys())[-1]
