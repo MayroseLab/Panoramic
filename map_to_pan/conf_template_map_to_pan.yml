@@ -9,7 +9,6 @@ reference_name:
 reference_genome:
 reference_annotation:
 reference_proteins:
-name_attribute: ID
 id_simplify_function: "lambda x: x"
 
 # Reads pre processing (RPP)

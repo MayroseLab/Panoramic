@@ -17,7 +17,7 @@ of the following general steps:
 
 import os
 pipeline_dir = os.path.dirname(os.path.realpath(workflow.snakefile))
-utils_dir = os.path.dirname(pipeline_dir)
+utils_dir = os.path.dirname(pipeline_dir) + '/util'
 import sys
 sys.path.append(utils_dir)
 from snakemakeUtils import *
@@ -37,8 +37,8 @@ def init():
 init()
 config['samples_info'] = OrderedDict(config['samples_info'])
 LOGS_DIR = config['out_dir'] + "/logs"
-CONDA_ENV_DIR = pipeline_dir + "/conda_env"
-annotation_pipeline_dir = os.path.dirname(pipeline_dir) + '/annotation_pipeline'
+CONDA_ENV_DIR = os.path.dirname(pipeline_dir) + '/conda_env'
+annotation_pipeline_dir = os.path.dirname(pipeline_dir) + '/genome_annotation'
 
 onstart:
     write_config_file(config)
