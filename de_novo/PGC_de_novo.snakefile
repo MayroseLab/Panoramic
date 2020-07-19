@@ -35,6 +35,7 @@ init()
 LOGS_DIR = config['out_dir'] + "/logs"
 CONDA_ENV_DIR = os.path.dirname(pipeline_dir) + "/conda_env"
 annotation_pipeline_dir = os.path.dirname(pipeline_dir) + '/genome_annotation'
+pan_genome_report_dir = os.path.dirname(pipeline_dir) + '/pan_genome_report'
 
 onstart:
     write_config_file(config)
@@ -1184,7 +1185,7 @@ rule calculate_stepwise_stats:
     output:
         config["out_dir"] + "/all_samples/stats/stepwise_stats.tsv"
     params:
-        stepwise_script=utils_dir + '/pan_genome_stats/calc_stepwise_stats.py',
+        stepwise_script=pan_genome_report_dir + '/calc_stepwise_stats.py',
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR,
@@ -1226,7 +1227,7 @@ rule collect_assembly_stats:
     output:
         config["out_dir"] + "/all_samples/stats/assembly_stats.tsv"
     params:
-        collect_script=utils_dir + '/pan_genome_stats/collect_stats.py',
+        collect_script=pan_genome_report_dir + '/collect_stats.py',
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR,
@@ -1250,7 +1251,7 @@ rule create_report_notebook:
         config["out_dir"] + "/all_samples/stats/report.ipynb"
     params:
         ref_name=config['ref_name'] + "_REF",
-        nb_template=utils_dir + '/pan_genome_stats/report_template.ipynb',
+        nb_template=pan_genome_report_dir + 'report_template.ipynb',
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR,
