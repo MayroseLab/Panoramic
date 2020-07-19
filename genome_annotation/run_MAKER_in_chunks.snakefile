@@ -1,6 +1,6 @@
 import os
 pipeline_dir = os.path.dirname(os.path.realpath(workflow.snakefile))
-utils_dir = os.path.dirname(pipeline_dir)
+utils_dir = os.path.dirname(pipeline_dir) + '/util'
 import sys
 sys.path.append(utils_dir)
 from snakemakeUtils import *
