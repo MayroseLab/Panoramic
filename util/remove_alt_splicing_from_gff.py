@@ -44,6 +44,8 @@ with open(out_gff, 'w') as fo, open(gene_mrna_out,'w') as fo2:
     gene = feature
     print(str(gene), file=fo)
     mrnas = list(gff.children(gene, featuretype='mRNA'))
+    if len(mrnas) == 0:
+      continue
     longest_transcript = mrnas[0]
     max_len = 0
     for mrna in mrnas:
