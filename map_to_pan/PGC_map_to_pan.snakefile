@@ -523,47 +523,65 @@ rule rename_genes:
         fasta=config["out_dir"] + "/all_samples/annotation/maker.proteins.fasta",
         gff=config["out_dir"] + "/all_samples/annotation/maker.genes.gff"
     output:
-        config["out_dir"] + "/all_samples/annotation/maker.proteins.raw_names.fasta",
-        config["out_dir"] + "/all_samples/annotation/maker.genes.raw_names.gff",
-        config["out_dir"] + "/all_samples/annotation/gff.map",
-        config["out_dir"] + "/all_samples/annotation/fasta.map"
+        fasta=config["out_dir"] + "/all_samples/annotation/maker.proteins.rename.fasta",
+        gff=config["out_dir"] + "/all_samples/annotation/maker.genes.rename.gff",
+        gff_map=config["out_dir"] + "/all_samples/annotation/gff.map"
     params:
         out_dir=config["out_dir"] + "/all_samples/annotation/",
-        create_fasta_map_script=os.path.join(utils_dir,"create_fasta_map.py"),
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR
     shell:
         """
         module load miniconda/miniconda2-4.5.4-MakerMPI
-        maker_map_ids --prefix PanGene --justify 1 --iterate 1 {input.gff} > {params.out_dir}/gff.map
-        cp {input.gff} {params.out_dir}/maker.genes.raw_names.gff
-        map_gff_ids {params.out_dir}/gff.map {input.gff}
-        python {params.create_fasta_map_script} {input.gff} > {params.out_dir}/fasta.map
-        cp {input.fasta} {params.out_dir}/maker.proteins.raw_names.fasta
-        map_fasta_ids {params.out_dir}/fasta.map {input.fasta}
+        maker_map_ids --prefix PanGene_ --justify 1 --iterate 1 {input.gff} > {output.gff_map}
+        cp {input.gff} {output.gff}
+        map_gff_ids {output.gff_map} {output.gff}
+        cp {input.fasta} {output.fasta}
+        map_fasta_ids {output.gff_map} {output.fasta}
         """
 
 rule filter_annotation:
     """
-    Remove unreliable annotations
+    Remove unreliable genes from gff,
+    having AED > X (set by user)
     """
     input:
-        fasta=config["out_dir"] + "/all_samples/annotation/maker.proteins.fasta",
-        fasta_map=config["out_dir"] + "/all_samples/annotation/fasta.map"
+        gff=config["out_dir"] + "/all_samples/annotation/maker.genes.rename.gff"
     output:
-        config["out_dir"] + "/all_samples/annotation/maker.proteins_filter.fasta"
+        lst=config["out_dir"] + "/all_samples/annotation/maker.genes.rename.filter.list",
+        gff=config["out_dir"] + "/all_samples/annotation/maker.genes.rename.filter.gff"
     params:
-        filter_script=utils_dir + '/filter_by_aed.py',
         max_aed=config['max_aed'],
+        filter_gff_script=utils_dir + '/filter_gff_by_id_list.py',
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    shell:
+        """
+        awk '{{split($9,a,";"); split(a[1],b,"="); split(a[2],c,"="); split(a[5],d,"=")}} $3 == "mRNA" && d[2] <= {params.max_aed} {{print(b[2]"\\n"c[2])}}' {input.gff} > {output.lst}
+        python {params.filter_gff_script} {input.gff} {output.lst} {output.gff}
+        """
+
+rule filter_proteins:
+    """
+    Filter proteins fasta according to filtered gff
+    """
+    input:
+        gff=config["out_dir"] + "/all_samples/annotation/maker.genes.rename.filter.gff",
+        fasta=config["out_dir"] + "/all_samples/annotation/maker.proteins.rename.fasta"
+    output:
+        config["out_dir"] + "/all_samples/annotation/maker.proteins.rename.filter.fasta"
+    params:
+        filter_fasta_script=utils_dir + '/filter_fasta_by_gff.py',
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR
     conda:
-        CONDA_ENV_DIR + '/snakemake.yml'
+        CONDA_ENV_DIR + '/gffutils.yml'
     shell:
         """
-        python {params.filter_script} {input.fasta} {input.fasta_map} {params.max_aed} {output}
+        python {params.filter_fasta_script} {input.gff} {input.fasta} {output} mRNA ID
         """
 
 rule prevent_duplicate_names:
@@ -574,9 +592,9 @@ rule prevent_duplicate_names:
     helps prevent problems in next steps
     """
     input:
-        config["out_dir"] + "/all_samples/annotation/maker.proteins_filter.fasta"
+        config["out_dir"] + "/all_samples/annotation/maker.proteins.rename.filter.fasta"
     output:
-        config["out_dir"] + "/all_samples/annotation/maker.proteins_filter_nodupl.fasta"
+        config["out_dir"] + "/all_samples/annotation/maker.proteins.rename.filter.no_dupl.fasta"
     params:
         dupl_script=utils_dir + '/prevent_duplicate_names.py',
         queue=config['queue'],
@@ -594,9 +612,9 @@ rule remove_redundant_proteins:
     longest sequence from each cluster.
     """
     input:
-        config["out_dir"] + "/all_samples/annotation/maker.proteins_filter_nodupl.fasta"
+        config["out_dir"] + "/all_samples/annotation/maker.proteins.rename.filter.no_dupl.fasta"
     output:
-        config["out_dir"] + "/all_samples/annotation/non_redun_maker.proteins_filter_nodupl.fasta"
+        config["out_dir"] + "/all_samples/annotation/maker.proteins.rename.filter.no_dupl.no_redun.fasta"
     params:
         similarity_threshold=config['similarity_threshold_proteins'],
         queue=config['queue'],
@@ -610,23 +628,6 @@ rule remove_redundant_proteins:
         cd-hit -i {input} -o {output} -c {params.similarity_threshold} -n 5 -M 0 -d 0 -T {params.ppn}
         """
 
-rule simplify_nonref_protein_names:
-    """
-    Keep only PanGeneX part of names
-    """
-    input:
-        config["out_dir"] + "/all_samples/annotation/non_redun_maker.proteins_filter_nodupl.fasta"
-    output:
-        config["out_dir"] + "/all_samples/annotation/non_redun_maker.proteins_filter_nodupl_simp.fasta"
-    params:
-        queue=config['queue'],
-        priority=config['priority'],
-        logs_dir=LOGS_DIR
-    shell:
-        """
-        sed 's/>\(.*\)-R.*/>\\1/' {input} > {output}
-        """
-
 rule match_gff:
     """
     Filter genes gff according to
@@ -634,11 +635,11 @@ rule match_gff:
     fasta after all filtrations.
     """
     input:
-        prot=config["out_dir"] + "/all_samples/annotation/non_redun_maker.proteins_filter_nodupl.fasta",
-        gff=config["out_dir"] + "/all_samples/annotation/maker.genes.gff",
+        prot=config["out_dir"] + "/all_samples/annotation/maker.proteins.rename.filter.no_dupl.no_redun.fasta",
+        gff=config["out_dir"] + "/all_samples/annotation/maker.genes.rename.filter.gff"
     output:
-        gff=config["out_dir"] + "/all_samples/annotation/non_redun_maker.genes_filter_nodupl.gff",
-        filter_list=config["out_dir"] + "/all_samples/annotation/filter.list"
+        gff=config["out_dir"] + "/all_samples/annotation/maker.genes.rename.filter.no_dupl.no_redun.gff",
+        filter_list=config["out_dir"] + "/all_samples/annotation//maker.genes.rename.filter.no_dupl.no_redun.list"
     params:
         filter_gff_script=utils_dir + '/filter_gff_by_id_list.py',
         queue=config['queue'],
@@ -656,7 +657,7 @@ rule create_pan_proteome:
     Create pan genome proteins fasta
     """
     input:
-        non_ref_proteins=config["out_dir"] + "/all_samples/annotation/non_redun_maker.proteins_filter_nodupl_simp.fasta",
+        non_ref_proteins=config["out_dir"] + "/all_samples/annotation/maker.proteins.rename.filter.no_dupl.no_redun.fasta",
         ref_plus_hq_proteins=config["out_dir"] + "/HQ_samples/HQ_pan/pan_proteins_no_alt_splicing.fasta"
     output:
         pan_proteome=config["out_dir"] + "/all_samples/pan_genome/pan_proteome.fasta"
@@ -674,7 +675,7 @@ rule create_pan_annotation:
     Create pan genome annotation gff
     """
     input:
-        non_ref_gff=config["out_dir"] + "/all_samples/annotation/non_redun_maker.genes_filter_nodupl.gff",
+        non_ref_gff=config["out_dir"] + "/all_samples/annotation/maker.genes.rename.filter.no_dupl.no_redun.gff",
         ref_plus_hq_gff=config["out_dir"] + "/HQ_samples/HQ_pan/pan_genes_no_alt_splicing.gff3"
     output:
         pan_genes=config["out_dir"] + "/all_samples/pan_genome/pan_genes.gff"
