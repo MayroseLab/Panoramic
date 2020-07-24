@@ -58,7 +58,7 @@ onerror:
 #                RULES              |
 #------------------------------------
 
-localrules: all, prep_annotation_chunks_tsv, prep_annotation_yaml 
+localrules: all, prep_annotation_chunks_tsv, prep_annotation_yaml, calculate_n_chunks
 
 n_samples = len(config['samples_info'])
 last_sample = list(config['samples_info'].keys())[-1]
@@ -414,16 +414,41 @@ rule iterative_map_to_pan_LQ:
          python {params.map_to_pan_script} {input.ref_genome} {input.ref_gff} {input.ref_proteins} {input.samples} {params.out_dir} --cpus {params.ppn} --min_len {params.min_len}
         """
 
+rule calculate_n_chunks:
+    """
+    Calculate the optimal number of
+    chunks to split the novel sequences
+    to, towards annotation.
+    """
+    input:
+        config["out_dir"] + "/all_samples/pan_genome/all_novel.fasta"
+    output:
+        config["out_dir"] + "/all_samples/non_ref/chunks/calc_n_chunks.done"
+    params:
+        max_jobs=config['max_jobs'] - 1,
+        logs_dir=LOGS_DIR
+    run:
+        # get total size
+        s = 0
+        with open(input[0]) as f:
+            for line in f:
+                if line.startswith('>'):
+                    continue
+                s += len(line.strip())
+        n_chunks =  min(s//100000, params.max_jobs)
+        with open(output[0], 'w') as fo:
+            print(n_chunks, file=fo)
+
 rule prep_annotation_chunks:
     """
     Divide non-ref contigs into chunks for efficient parallel analysis
     """
     input:
-        config["out_dir"] + "/all_samples/pan_genome/all_novel.fasta"
+        d=config["out_dir"] + "/all_samples/non_ref/chunks/calc_n_chunks.done",
+        fasta=config["out_dir"] + "/all_samples/pan_genome/all_novel.fasta"
     output:
         config["out_dir"] + "/all_samples/non_ref/chunks/chunks.done"
     params:
-        chunks=config['max_jobs'] - 1,
         out_dir=config["out_dir"] + "/all_samples/non_ref/chunks",
         queue=config['queue'],
         priority=config['priority'],
@@ -432,9 +457,10 @@ rule prep_annotation_chunks:
         CONDA_ENV_DIR + '/faSplit.yml'
     shell:
         """
-        faSplit sequence {input} {params.chunks} {params.out_dir}/chunk
+        n_chunks=`cat {input.d}`
+        faSplit sequence {input.fasta} $n_chunks {params.out_dir}/chunk
         touch {output}
-        """ 
+        """
 
 rule prep_annotation_chunks_tsv:
     """
