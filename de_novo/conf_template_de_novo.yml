@@ -5,10 +5,10 @@ hq_genomes_info_file:
 out_dir:
 
 # Reference
-ref_name:
-ref_genome:
-ref_proteins:
-ref_annotation:
+reference_name:
+reference_genome:
+reference_proteins:
+reference_annotation:
 
 # Reads pre processing (RPP)
 trimming_modules: "ILLUMINACLIP:/groups/itay_mayrose/nosnap/liorglic/Projects/PGCM/python/PGC_de_novo/test/test_data/NexteraPE-PE.fa:2:30:10 SLIDINGWINDOW:5:15 MINLEN:40"

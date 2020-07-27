@@ -259,7 +259,7 @@ rule ref_guided_assembly:
     """
     input:
         contigs=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contigs_filter.fasta",
-        ref_genome=config['ref_genome'],
+        ref_genome=config['reference_genome'],
     output:
         config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragoo_output/ragoo.fasta",
         directory(config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragoo_output/orderings")
@@ -311,7 +311,7 @@ rule prep_liftover:
     """
     input:
         genome=config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragoo_output/ragoo.fasta",
-        liftover_transcripts=config["out_dir"] + "/all_samples/ref/" + config['ref_name'] + '_longest_trans.fasta'
+        liftover_transcripts=config["out_dir"] + "/all_samples/ref/" + config['reference_name'] + '_longest_trans.fasta'
     output:
         genome=config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/gawn/03_data/genome.fasta",
         liftover_transcripts=config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/gawn/03_data/transcriptome.fasta"
@@ -426,8 +426,8 @@ rule blast_liftover_proteins:
     """
     input:
         liftover=config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/gawn/05_results/liftover_TransDecoder_proteins.fasta",
-        ref=config["out_dir"] + "/all_samples/orthofinder/" + config['ref_name'] + '_REF.fasta',
-        ref_db=config["out_dir"] + "/all_samples/orthofinder/" + config['ref_name'] + '_REF.fasta.psq'
+        ref=config["out_dir"] + "/all_samples/orthofinder/" + config['reference_name'] + '_REF.fasta',
+        ref_db=config["out_dir"] + "/all_samples/orthofinder/" + config['reference_name'] + '_REF.fasta.psq'
     output:
         config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/gawn/05_results/liftover_transcripts.fasta.transdecoder.pep_vs_ref.blast6"
     params:
@@ -941,9 +941,9 @@ rule remove_ref_alt_splicing:
     only keep the longest transcript.
     """
     input:
-        ref_gff=config['ref_annotation']
+        ref_gff=config['reference_annotation']
     output:
-        config["out_dir"] + "/all_samples/ref/" + config['ref_name'] + '_longest_trans.gff'
+        config["out_dir"] + "/all_samples/ref/" + config['reference_name'] + '_longest_trans.gff'
     params:
         longest_trans_script=utils_dir + '/remove_alt_splicing_from_gff.py',
         queue=config['queue'],
@@ -963,11 +963,11 @@ rule get_ref_proteins:
     in orthofinder dir.
     """
     input:
-        trans=config["out_dir"] + "/all_samples/ref/" + config['ref_name'] + '_longest_trans.fasta',
-        fasta=config['ref_proteins'],
-        gff=config["out_dir"] + "/all_samples/ref/" + config['ref_name'] + '_longest_trans.gff'
+        trans=config["out_dir"] + "/all_samples/ref/" + config['reference_name'] + '_longest_trans.fasta',
+        fasta=config['reference_proteins'],
+        gff=config["out_dir"] + "/all_samples/ref/" + config['reference_name'] + '_longest_trans.gff'
     output:
-        config["out_dir"] + "/all_samples/orthofinder/" + config['ref_name'] + '_REF.fasta'
+        config["out_dir"] + "/all_samples/orthofinder/" + config['reference_name'] + '_REF.fasta'
     params:
         filter_fasta_script=utils_dir + '/filter_fasta_by_gff.py',
         queue=config['queue'],
@@ -985,11 +985,11 @@ rule make_ref_blast_db:
     Create blast DB of ref proteins
     """
     input:
-        config["out_dir"] + "/all_samples/orthofinder/" + config['ref_name'] + '_REF.fasta'
+        config["out_dir"] + "/all_samples/orthofinder/" + config['reference_name'] + '_REF.fasta'
     output:
-        config["out_dir"] + "/all_samples/orthofinder/" + config['ref_name'] + '_REF.fasta.pin',
-        config["out_dir"] + "/all_samples/orthofinder/" + config['ref_name'] + '_REF.fasta.phr',
-        config["out_dir"] + "/all_samples/orthofinder/" + config['ref_name'] + '_REF.fasta.psq'
+        config["out_dir"] + "/all_samples/orthofinder/" + config['reference_name'] + '_REF.fasta.pin',
+        config["out_dir"] + "/all_samples/orthofinder/" + config['reference_name'] + '_REF.fasta.phr',
+        config["out_dir"] + "/all_samples/orthofinder/" + config['reference_name'] + '_REF.fasta.psq'
     params:
         queue=config['queue'],
         priority=config['priority'],
@@ -1053,9 +1053,9 @@ rule get_ref_transcripts:
     """
     input:
         fasta=config['liftover_transcripts'],
-        gff=config["out_dir"] + "/all_samples/ref/" + config['ref_name'] + '_longest_trans.gff'
+        gff=config["out_dir"] + "/all_samples/ref/" + config['reference_name'] + '_longest_trans.gff'
     output:
-        config["out_dir"] + "/all_samples/ref/" + config['ref_name'] + '_longest_trans.fasta'
+        config["out_dir"] + "/all_samples/ref/" + config['reference_name'] + '_longest_trans.fasta'
     params:
         filter_fasta_script=utils_dir + '/filter_fasta_by_gff.py',
         queue=config['queue'],
@@ -1076,7 +1076,7 @@ rule orthofinder:
     """
     input:
         expand(config["out_dir"] + "/all_samples/orthofinder/{sample}_{ena_ref}_LQ.fasta", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()]),
-        config["out_dir"] + "/all_samples/orthofinder/" + config['ref_name'] + '_REF.fasta',
+        config["out_dir"] + "/all_samples/orthofinder/" + config['reference_name'] + '_REF.fasta',
         expand(config["out_dir"] + "/all_samples/orthofinder/{sample}_HQ.fasta", sample=config['hq_info'].keys())
     output:
         config["out_dir"] + "/all_samples/orthofinder/OrthoFinder/Results_orthofinder/Orthogroups/Orthogroups.tsv"
@@ -1112,7 +1112,7 @@ rule break_orthogroups_MWOP:
     params:
         orthofinder_dir=config["out_dir"] + "/all_samples/orthofinder/OrthoFinder/Results_orthofinder",
         mwop_script=os.path.join(pipeline_dir,"break_OrthoFinder_clusters.py"),
-        ref_genome_name=config['ref_name'] + "_REF",
+        ref_genome_name=config['reference_name'] + "_REF",
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR
@@ -1135,7 +1135,7 @@ rule create_PAV_matrix:
         mapping=config["out_dir"] + "/all_samples/pan_genome/OG_to_gene_names.tsv"
     params:
         create_pav_mat_script=os.path.join(pipeline_dir,"create_PAV_matrix.py"),
-        ref_name=config['ref_name'] + "_REF",
+        ref_name=config['reference_name'] + "_REF",
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR
@@ -1245,7 +1245,7 @@ rule create_report_notebook:
     output:
         config["out_dir"] + "/all_samples/stats/report.ipynb"
     params:
-        ref_name=config['ref_name'] + "_REF",
+        ref_name=config['reference_name'] + "_REF",
         nb_template=pan_genome_report_dir + 'report_template.ipynb',
         queue=config['queue'],
         priority=config['priority'],
