@@ -237,7 +237,8 @@ rule assembly_quast:
         r1=config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}_1_clean_paired.fastq.gz",
         r2=config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}_2_clean_paired.fastq.gz"
     output:
-        config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/QUAST/report.html"
+        config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/QUAST/report.html",
+        config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/QUAST/report.tsv"
     params:
         out_dir=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/QUAST",
         queue=config['queue'],
