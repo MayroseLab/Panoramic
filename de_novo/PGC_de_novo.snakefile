@@ -941,14 +941,11 @@ rule remove_ref_alt_splicing:
     only keep the longest transcript.
     """
     input:
-        ref_prot=config['ref_proteins'],
         ref_gff=config['ref_annotation']
     output:
         config["out_dir"] + "/all_samples/ref/" + config['ref_name'] + '_longest_trans.gff'
     params:
         longest_trans_script=utils_dir + '/remove_alt_splicing_from_gff.py',
-        min_protein=config['min_protein'],
-        name_attribute=config['name_attribute'],
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR
@@ -956,7 +953,7 @@ rule remove_ref_alt_splicing:
         CONDA_ENV_DIR + '/gffutils.yml'
     shell:
         """
-        python {params.longest_trans_script} {input.ref_gff} {output} {input.ref_prot} {params.min_protein} {params.name_attribute}
+        python {params.longest_trans_script} {input.ref_gff} {output}
         """
 
 rule get_ref_proteins:
@@ -973,7 +970,6 @@ rule get_ref_proteins:
         config["out_dir"] + "/all_samples/orthofinder/" + config['ref_name'] + '_REF.fasta'
     params:
         filter_fasta_script=utils_dir + '/filter_fasta_by_gff.py',
-        name_attribute=config['name_attribute'],
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR
@@ -981,7 +977,7 @@ rule get_ref_proteins:
         CONDA_ENV_DIR + '/gffutils.yml'
     shell:
         """
-        python {params.filter_fasta_script} {input.gff} {input.fasta} {output} mRNA {params.name_attribute}
+        python {params.filter_fasta_script} {input.gff} {input.fasta} {output} mRNA ID
         """
 
 rule make_ref_blast_db:
@@ -1062,7 +1058,6 @@ rule get_ref_transcripts:
         config["out_dir"] + "/all_samples/ref/" + config['ref_name'] + '_longest_trans.fasta'
     params:
         filter_fasta_script=utils_dir + '/filter_fasta_by_gff.py',
-        name_attribute=config['name_attribute'],
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR
@@ -1070,7 +1065,7 @@ rule get_ref_transcripts:
         CONDA_ENV_DIR + '/gffutils.yml'
     shell:
         """
-        python {params.filter_fasta_script} {input.gff} {input.fasta} {output} mRNA {params.name_attribute}
+        python {params.filter_fasta_script} {input.gff} {input.fasta} {output} mRNA ID
         """
 
 rule orthofinder:
