@@ -26,7 +26,6 @@ maker_load: ""
 repeats_library:
 transcripts:
 proteins:
-annotation_config_templates:
 augustus_species:
 
 # Annotation filtration

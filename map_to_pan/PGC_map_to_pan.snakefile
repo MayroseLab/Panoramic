@@ -40,6 +40,7 @@ LOGS_DIR = config['out_dir'] + "/logs"
 CONDA_ENV_DIR = os.path.dirname(pipeline_dir) + '/conda_env'
 annotation_pipeline_dir = os.path.dirname(pipeline_dir) + '/genome_annotation'
 pan_genome_report_dir = os.path.dirname(pipeline_dir) + '/pan_genome_report'
+annotation_templates_dir = annotation_pipeline_dir + "/annotation_templates/annotation"
 
 onstart:
     write_config_file(config)
@@ -513,7 +514,7 @@ rule prep_annotation_yaml:
         config["out_dir"] + "/all_samples/annotation/annotation.yml"
     params:
         annotation_dir=config["out_dir"] + "/all_samples/annotation",
-        templates_dir=config["annotation_config_templates"],
+        templates_dir=annotation_templates_dir,
         transcripts=config['transcripts'],
         proteins=config['proteins'],
         repeats_library=config['repeats_library'],
