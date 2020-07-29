@@ -400,7 +400,7 @@ rule predict_liftover_proteins:
         """
         cd {params.wdir}
         TransDecoder.LongOrfs -t {input} -m 1
-        TransDecoder.Predict -t {input} --single_best_only
+        TransDecoder.Predict -t {input} --single_best_only --no_refine_starts
         """
 
 rule simplify_transdecoder_protein_names:
