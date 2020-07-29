@@ -526,8 +526,6 @@ rule prep_annotation_chunks_tsv:
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR
-    conda:
-        CONDA_ENV_DIR + '/snakemake.yml'
     shell:
         """
         echo "chunk\tpath" > {output}
@@ -1165,7 +1163,7 @@ rule create_pan_proteins_fasta:
         priority=config['priority'],
         logs_dir=LOGS_DIR
     conda:
-        CONDA_ENV_DIR + '/snakemake.yml'
+        CONDA_ENV_DIR + '/biopython.yml'
     shell:
         """
         python {params.create_pan_prot_fasta_script} {params.og_seq_dir} {input.mapping} {input.mwop} {output}
