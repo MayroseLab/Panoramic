@@ -518,6 +518,7 @@ rule prep_annotation_yaml:
         proteins=config['proteins'],
         repeats_library=config['repeats_library'],
         augustus_species=config['augustus_species'],
+        maker_load=config['maker_load'],
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR
@@ -531,6 +532,7 @@ rule prep_annotation_yaml:
         echo "priority: {params.priority}" >> {output}
         echo "sample: non_ref_contigs" >> {output}
         echo "logs_dir: {params.logs_dir}" >> {output}
+        echo "maker_load: {params.maker_load}" >> {output}
         echo config_kv_pairs: est={params.transcripts} protein={params.proteins} rmlib={params.repeats_library} augustus_species={params.augustus_species} >> {output}
         """
 
@@ -573,13 +575,14 @@ rule rename_genes:
         gff=config["out_dir"] + "/all_samples/annotation/maker.genes.rename.gff",
         gff_map=config["out_dir"] + "/all_samples/annotation/gff.map"
     params:
+        maker_load=config['maker_load'],
         out_dir=config["out_dir"] + "/all_samples/annotation/",
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR
     shell:
         """
-        module load miniconda/miniconda2-4.5.4-MakerMPI
+        {params.maker_load}
         maker_map_ids --prefix PanGene_ --justify 1 --iterate 1 {input.gff} > {output.gff_map}
         cp {input.gff} {output.gff}
         map_gff_ids {output.gff_map} {output.gff}

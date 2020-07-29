@@ -75,6 +75,7 @@ rule run_maker:
     log:
         index=config["out_dir"] + "/chunks/{chunk}/chunk.maker.output/chunk_master_datastore_index.log"
     params:
+        maker_load=config['maker_load'],
         run_dir=config["out_dir"] + "/chunks/{chunk}",
         queue=config['queue'],
         priority=config['priority'],
@@ -84,7 +85,7 @@ rule run_maker:
     shell:
         """
         cd {params.run_dir}
-        module load miniconda/miniconda2-4.5.4-MakerMPI
+        {params.maker_load}
         maker -b chunk -fix_nucleotides
         if [ -f {log.index} ] && (( `grep STARTED {log.index} | wc -l` <= `grep FINISHED {log.index} | wc -l` )); then touch {output}; fi
         """
@@ -96,13 +97,14 @@ rule create_full_gff:
     output:
         config["out_dir"] + "/chunks/{chunk}/chunk.maker.output/chunk.all.gff"
     params:
+        maker_load=config['maker_load'],
         queue=config['queue'],
         priority=config['priority'],
         sample=config['sample'],
         logs_dir=config['logs_dir']
     shell:
         """
-        module load miniconda/miniconda2-4.5.4-MakerMPI
+        {params.maker_load}
         gff3_merge -d {input.index} -n -s > {output}
         """
 
@@ -113,13 +115,14 @@ rule create_genes_gff:
     output:
         config["out_dir"] + "/chunks/{chunk}/chunk.maker.output/chunk.genes.gff"
     params:
+        maker_load=config['maker_load'],
         queue=config['queue'],
         priority=config['priority'],
         sample=config['sample'],
         logs_dir=config['logs_dir']
     shell:
         """
-        module load miniconda/miniconda2-4.5.4-MakerMPI
+        {params.maker_load}
         gff3_merge -d {input.index} -n -g -s > {output}
         """
 
@@ -144,13 +147,14 @@ rule merge_full_gff:
     output:
         config["out_dir"] + "/maker.all.gff"
     params:
+        maker_load=config['maker_load'],
         queue=config['queue'],
         priority=config['priority'],
         sample=config['sample'],
         logs_dir=config['logs_dir']
     shell:
         """
-        module load miniconda/miniconda2-4.5.4-MakerMPI
+        {params.maker_load}
         gff3_merge -n -s {input} | grep -v '###' > {output}
         """
 
@@ -160,13 +164,14 @@ rule merge_genes_gff:
     output:
         config["out_dir"] + "/maker.genes.gff"
     params:
+        maker_load=config['maker_load'],
         queue=config['queue'],
         priority=config['priority'],
         sample=config['sample'],
         logs_dir=config['logs_dir']
     shell:
         """
-        module load miniconda/miniconda2-4.5.4-MakerMPI
+        {params.maker_load}
         gff3_merge -n -s {input} | grep -v '###' > {output}
         """
 
@@ -193,6 +198,7 @@ rule create_fasta:
         trans=config["out_dir"] + "/chunks/{chunk}/chunk.maker.output/chunk.all.maker.transcripts.fasta",
         prot=config["out_dir"] + "/chunks/{chunk}/chunk.maker.output/chunk.all.maker.proteins.fasta"
     params:
+        maker_load=config['maker_load'],
         out_dir = config["out_dir"] + "/chunks/{chunk}/chunk.maker.output/",
         queue=config['queue'],
         priority=config['priority'],
@@ -200,7 +206,7 @@ rule create_fasta:
         logs_dir=config['logs_dir']
     shell:
         """
-        module load miniconda/miniconda2-4.5.4-MakerMPI
+        {params.maker_load}
         cd {params.out_dir}
         fasta_merge -d {input.index}
         if [ ! -f {output.prot} ] && [ `grep -v '#' {input.genes_gff} | wc -l` == 0 ]; then touch {output.prot}; fi

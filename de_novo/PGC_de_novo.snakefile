@@ -567,6 +567,7 @@ rule prep_annotation_yaml:
         repeats_library=config['repeats_library'],
         augustus_species=config['augustus_species'],
         min_protein=config['min_protein'],
+        maker_load=config['maker_load'],
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR
@@ -580,6 +581,7 @@ rule prep_annotation_yaml:
         echo "priority: {params.priority}" >> {output}
         echo "sample: {wildcards.sample}" >> {output}
         echo "logs_dir: {params.logs_dir}" >> {output}
+        echo "maker_load: {params.maker_load}" >> {output}
         echo config_kv_pairs: est={params.liftover_transcripts},{params.additional_transcripts} protein={params.proteins} rmlib={params.repeats_library} augustus_species={params.augustus_species} min_protein={params.min_protein} >> {output}
         """
 
@@ -707,12 +709,13 @@ rule combine_liftover_with_novel_gff:
     output:
         config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.genes.chr.combine.gff"
     params:
+        maker_load=config['maker_load'],
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR
     shell:
         """
-        module load miniconda/miniconda2-4.5.4-MakerMPI
+        {params.maker_load}
         gff3_merge {input.liftover_gff} {input.novel_gff} -s > {output}
         """
 
@@ -746,14 +749,14 @@ rule rename_genes:
         fasta=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.proteins.combine.rename.fasta",
         gff=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.genes.chr.combine.rename.gff",
         gff_map=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/gff.map",
-        #fasta_map=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/fasta.map"
     params:
+        maker_load=config['maker_load'],
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR
     shell:
         """
-        module load miniconda/miniconda2-4.5.4-MakerMPI
+        {params.maker_load}
         maker_map_ids --prefix {wildcards.sample}_ --justify 1 --iterate 1 {input.gff} > {output.gff_map}
         cp {input.gff} {output.gff}
         map_gff_ids {output.gff_map} {output.gff}

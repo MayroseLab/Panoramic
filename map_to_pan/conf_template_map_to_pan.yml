@@ -22,6 +22,7 @@ min_coverage: 2
 busco_set:
 
 # Annotation
+maker_load: ""
 repeats_library:
 transcripts:
 proteins:

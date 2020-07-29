@@ -24,11 +24,12 @@ contig_borders_script:
 busco_set:
 
 # GAWN liftover
+liftover_transcripts:
 min_identity: 95
 
 # annotation
+maker_load: ""
 repeats_library:
-liftover_transcripts:
 additional_transcripts:
 proteins:
 annotation_config_templates:
