@@ -1245,7 +1245,7 @@ rule create_report_notebook:
         config["out_dir"] + "/all_samples/stats/report.ipynb"
     params:
         ref_name=config['reference_name'] + "_REF",
-        nb_template=pan_genome_report_dir + 'report_template.ipynb',
+        nb_template=pan_genome_report_dir + '/report_template.ipynb',
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR,
