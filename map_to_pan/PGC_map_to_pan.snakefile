@@ -83,24 +83,44 @@ def get_hq_sample_genome(wildcards):
 def get_hq_sample_proteins(wildcards):
     return config['hq_info'][wildcards.sample]['proteins_fasta']
 
+ena_fast_download_url = "https://raw.githubusercontent.com/wwood/ena-fast-download/master/ena-fast-download.py"
+
+rule fetch_ena_fast_download_script:
+    """
+    Download latest version on ena-fast-download.py
+    """
+    output:
+        config["out_dir"] + "/ena-fast-download.py"
+    params:
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    run:
+        shell("wget %s -O {output}" % ena_fast_download_url)
+
 rule download_fastq:
     """
     Download reads data from ENA
     """
+    input:
+        config["out_dir"] + "/ena-fast-download.py"
     output:
         config["out_dir"] + "/per_sample/{sample}/data/{ena_ref}_1.fastq.gz",
         config["out_dir"] + "/per_sample/{sample}/data/{ena_ref}_2.fastq.gz"
     params:
         sample_out_dir=config["out_dir"] + "/per_sample/{sample}/data",
         ena_ref=get_sample,
-        download_script=utils_dir + '/ena-fast-download.py',
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR
+    conda:
+        CONDA_ENV_DIR + '/ena_download.yml'
     shell:
         """
-        module load curl
-        python {params.download_script} {params.ena_ref} --output_directory {params.sample_out_dir}
+        # find ssh key in conda env
+        ssh=`find ./.snakemake/conda/ -name asperaweb_id_dsa.openssh`
+        # run
+        python {input} {params.ena_ref} --output_directory {params.sample_out_dir} --ssh-key $ssh
         """
 
 rule quality_trimming:

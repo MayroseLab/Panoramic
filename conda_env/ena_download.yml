@@ -1,0 +1,7 @@
+name: ena_download
+channels:
+  - conda-forge
+  - HCC
+dependencies:
+  - aspera-cli
+  - curl
