@@ -79,7 +79,8 @@ rule run_maker:
         queue=config['queue'],
         priority=config['priority'],
         sample=config['sample'],
-        logs_dir=config['logs_dir']
+        logs_dir=config['logs_dir'],
+        ppn=4
     shell:
         """
         cd {params.run_dir}
