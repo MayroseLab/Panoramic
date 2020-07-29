@@ -258,7 +258,7 @@ rule assembly_busco:
     shell:
         """
         cd {params.assembly_dir}
-        run_busco -i {input} -o BUSCO -m genome -l {params.busco_set} -c {params.ppn} -f
+        busco -i {input} -o BUSCO -m genome -l {params.busco_set} -c {params.ppn} -f
         """
 
 rule assembly_quast:

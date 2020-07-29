@@ -929,7 +929,7 @@ rule annotation_busco:
     shell:
         """
         cd {params.annotation_dir}
-        run_busco -i {input} -o BUSCO -m proteins -l {params.busco_set} -c {params.ppn} -f
+        busco -i {input} -o BUSCO -m proteins -l {params.busco_set} -c {params.ppn} -f
         """
 
 rule prep_for_orthofinder:
