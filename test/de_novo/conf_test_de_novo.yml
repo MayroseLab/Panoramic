@@ -1,0 +1,47 @@
+name: PGC_de_novo
+# input/output
+samples_info_file: Panoramic/test/de_novo/LQ_samples_info_de_novo.tsv
+hq_genomes_info_file: Panoramic/test/de_novo/HQ_samples_info_de_novo.tsv
+out_dir: Panoramic/test/de_novo/RESULT
+
+# Reference genome
+reference_name: S288C
+reference_genome: Panoramic/test/data/S288C_reference_sequence_R64-2-1_20150113.fsa
+reference_annotation: Panoramic/test/data/saccharomyces_cerevisiae_R64-2-1_20150113.gff
+reference_proteins: Panoramic/test/data/orf_trans_all_R64-2-1_20150113.fasta
+id_simplify_function: "lambda x: x"
+
+# Reads pre processing (RPP)
+trimming_modules: "SLIDINGWINDOW:5:15 MINLEN:40"
+merge_min_overlap: 10
+merge_max_mismatch_ratio: 0.2
+
+# Assembly
+min_length: 500
+min_coverage: 2
+ragoo_script: /groups/itay_mayrose/liorglic/RaGOO/ragoo.py
+gap_size: 10
+contig_borders_script: /groups/itay_mayrose/liorglic/RaGOO/ragoo_utilities/get_contig_borders.py
+busco_set: saccharomycetes_odb10
+
+# GAWN liftover
+liftover_transcripts: Panoramic/test/data/orf_coding_all_R64-2-1_20150113.fasta
+min_identity: 95
+
+# Annotation
+maker_load: ""
+repeats_library: Panoramic/test/data/repeats.fa
+additional_transcripts: Panoramic/test/data/orf_coding_all_R64-2-1_20150113.fasta
+proteins: Panoramic/test/data/orf_trans_all_R64-2-1_20150113.fasta
+augustus_species: saccharomyces_cerevisiae_S288C
+min_protein: 50
+
+# Annotation filtration
+max_aed: 0.4
+
+# Environment
+queue:
+priority:
+ppn:
+max_ram:
+max_jobs:
