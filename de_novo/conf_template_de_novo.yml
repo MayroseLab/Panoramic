@@ -18,9 +18,6 @@ merge_max_mismatch_ratio: 0.2
 # Assembly
 min_length: 500
 min_coverage: 2
-ragoo_script:
-gap_size: 10
-contig_borders_script:
 busco_set:
 
 # GAWN liftover

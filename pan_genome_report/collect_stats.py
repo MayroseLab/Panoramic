@@ -35,7 +35,7 @@ with open(in_tsv) as f:
       total_len = 0
       chr0_len = None
       for rec in SeqIO.parse(ragoo_fasta,'fasta'):
-        if rec.id == "Chr0_RaGOO":
+        if rec.id == "Chr0_RagTag":
           chr0_len = len(rec.seq)
           total_len += len(rec.seq)
         else:
