@@ -246,7 +246,7 @@ rule assembly_busco:
     input:
         config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contigs_filter.fasta"
     output:
-        config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/run_BUSCO/short_summary_BUSCO.txt"
+        config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/BUSCO/short_summary.BUSCO.txt"
     params:
         assembly_dir=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}",
         busco_set=config['busco_set'],
@@ -260,6 +260,7 @@ rule assembly_busco:
         """
         cd {params.assembly_dir}
         busco -i {input} -o BUSCO -m genome -l {params.busco_set} -c {params.ppn} -f
+        cp {params.assembly_dir}/BUSCO/short_summary.specific.{params.busco_set}.BUSCO.txt {output}
         """
 
 rule assembly_quast:
@@ -1054,7 +1055,6 @@ rule calculate_stepwise_stats:
         """
         python {params.stepwise_script} {input} 100 {output}
         """
-
 rule prep_for_collect_stats:
     """
     Prepare the TSV required for
@@ -1062,7 +1062,7 @@ rule prep_for_collect_stats:
     """
     input:
         quast=expand(config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/QUAST/report.tsv", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()]),
-        busco=expand(config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/run_BUSCO/short_summary_BUSCO.txt", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()])
+        busco=expand(config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/BUSCO/short_summary.BUSCO.txt", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()])
     output:
         config["out_dir"] + "/all_samples/stats/assembly_stats_files.tsv"
     params:
