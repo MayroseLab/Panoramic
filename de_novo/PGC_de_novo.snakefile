@@ -228,25 +228,6 @@ rule filter_contigs:
         python {params.filter_script} {input} {params.min_length} {params.min_coverage} {output}
         """
 
-rule index_contigs_fasta:
-    """
-    Index contigs fasta. For later use by RaGOO.
-    """
-    input:
-        config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contigs_filter.fasta"
-    output:
-        config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contigs_filter.fasta.fai"
-    params:
-        queue=config['queue'],
-        priority=config['priority'],
-        logs_dir=LOGS_DIR
-    conda:
-        CONDA_ENV_DIR + '/samtools.yml'
-    shell:
-        """
-        samtools faidx {input}
-        """
-
 rule assembly_quast:
     """
     Run QUAST on assembly to get assembly stats and QA
@@ -281,24 +262,20 @@ rule ref_guided_assembly:
         contigs=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contigs_filter.fasta",
         ref_genome=config['reference_genome'],
     output:
-        config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragoo_output/ragoo.fasta",
-        directory(config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragoo_output/orderings")
+        config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/ragtag.scaffolds.fasta",
+        config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/ragtag.scaffolds.agp"
     params:
-        ragoo_script=config['ragoo_script'],
-        gap_size=config['gap_size'],
         out_dir=config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}",
         queue=config['queue'],
         priority=config['priority'],
         ppn=config['ppn'],
         logs_dir=LOGS_DIR
     conda:
-        CONDA_ENV_DIR + '/RaGOO.yml'
+        CONDA_ENV_DIR + '/RagTag.yml'
     shell:
         """
         cd {params.out_dir}
-        ln -f {input.contigs} contigs.fasta
-        ln -f {input.ref_genome} ref.fasta
-        python {params.ragoo_script} contigs.fasta ref.fasta -t {params.ppn} -g {params.gap_size}
+        ragtag.py scaffold {input.ref_genome} {input.contigs} -C -r -g 10 -t {params.ppn}
         """
 
 rule assembly_busco:
@@ -306,11 +283,11 @@ rule assembly_busco:
     Run BUSCO on assembly
     """
     input:
-        config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragoo_output/ragoo.fasta"
+        config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/ragtag.scaffolds.fasta"
     output:
-        config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragoo_output/run_BUSCO/short_summary_BUSCO.txt"
+       config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/BUSCO/short_summary.BUSCO.txt"
     params:
-        assembly_dir=config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragoo_output",
+        assembly_dir=config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output",
         busco_set=config['busco_set'],
         queue=config['queue'],
         priority=config['priority'],
@@ -321,7 +298,8 @@ rule assembly_busco:
     shell:
         """
         cd {params.assembly_dir}
-        run_busco -i {input} -o BUSCO -m genome -l {params.busco_set} -c {params.ppn} -f
+        busco -i {input} -o BUSCO -m genome -l {params.busco_set} -c {params.ppn} -f
+        cp {params.assembly_dir}/BUSCO/short_summary.specific.{params.busco_set}.BUSCO.txt {output}
         """
 
 rule prep_liftover:
@@ -330,7 +308,7 @@ rule prep_liftover:
     liftover using GAWN
     """
     input:
-        genome=config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragoo_output/ragoo.fasta",
+        genome=config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/ragtag.scaffolds.fasta",
         liftover_transcripts=config["out_dir"] + "/all_samples/ref/" + config['reference_name'] + '_longest_trans.fasta'
     output:
         genome=config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/gawn/03_data/genome.fasta",
@@ -515,7 +493,7 @@ rule prep_chunks:
     Divide assembly into chunks for efficient parallel analysis
     """
     input:
-        fasta=config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragoo_output/ragoo.fasta",
+        fasta=config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/ragtag.scaffolds.fasta"
     output:
         config["out_dir"] + "/per_sample/{sample}/chunks_{ena_ref}/chunks.lft"
     params:
@@ -796,19 +774,16 @@ rule make_contigs_bed:
     Useful as part of annotation evidence collection.
     """
     input:
-        ord_dir=directory(config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragoo_output/orderings"),
-        faidx=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contigs_filter.fasta.fai"
+        config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/ragtag.scaffolds.agp"
     output:
         config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/evidence/contigs.bed"
     params:
-        ragoo_contigs_script=os.path.join(pipeline_dir,"ragoo_ordering_to_bed.py"),
-        gap_size=config['gap_size'],
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR
     shell:
         """
-        python {params.ragoo_contigs_script} {input.ord_dir} {input.faidx} {params.gap_size} {output}
+        awk '$5 == "W" {{print $1"\t"$2"\t"$3"\t"$6}}' {input} > {output}
         """
 
 rule index_evidence_gff:
@@ -826,7 +801,7 @@ rule index_evidence_gff:
         config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/evidence/maker.all.chr.protein2genome.gff",
         config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/evidence/chunks.bed",
         config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/QUAST/report.html",
-        config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragoo_output/run_BUSCO/short_summary_BUSCO.txt"
+        config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/BUSCO/short_summary.BUSCO.txt"
     output:
         config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/evidence/done"
     params:
@@ -941,7 +916,6 @@ rule prep_for_orthofinder:
     matching genome names.
     """
     input:
-        #ev=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/evidence/done",
         fasta=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.proteins_filter_nodupl.fasta"
     output:
         config["out_dir"] + "/all_samples/orthofinder/{sample}_{ena_ref}_LQ.fasta"
@@ -1219,8 +1193,8 @@ rule prep_for_collect_stats:
     """
     input:
         quast=expand(config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/QUAST/report.tsv", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()]),
-        busco=expand(config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragoo_output/run_BUSCO/short_summary_BUSCO.txt", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()]),
-        ragoo=expand(config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragoo_output/ragoo.fasta", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()])
+        busco=expand(config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/BUSCO/short_summary.BUSCO.txt", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()]),
+        ragtag=expand(config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/ragtag.scaffolds.fasta", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()])
     output:
         config["out_dir"] + "/all_samples/stats/assembly_stats_files.tsv"
     params:
@@ -1230,12 +1204,12 @@ rule prep_for_collect_stats:
         logs_dir=LOGS_DIR,
     shell:
         """
-        paste <(echo {params.samples} | tr ' ' '\n') <(echo {input.quast} | tr ' ' '\n') <(echo {input.busco} | tr ' ' '\n') <(echo {input.ragoo} | tr ' ' '\n') > {output}
+        paste <(echo {params.samples} | tr ' ' '\n') <(echo {input.quast} | tr ' ' '\n') <(echo {input.busco} | tr ' ' '\n') <(echo {input.ragtag} | tr ' ' '\n') > {output}
         """
 
 rule collect_assembly_stats:
     """
-    Collect QUAST, BUSCO and RaGOO
+    Collect QUAST, BUSCO and RagTag
     stats for LQ samples
     """
     input:
@@ -1293,5 +1267,5 @@ rule create_report_html:
         CONDA_ENV_DIR + '/jupyter.yml'
     shell:
         """
-        jupyter nbconvert {input} --output {output} --no-prompt --no-input --execute --NotebookClient.timeout=-1
+        jupyter nbconvert {input} --output {output} --no-prompt --no-input --execute --NotebookClient.timeout=-1 --ExecutePreprocessor.timeout=-1
         """

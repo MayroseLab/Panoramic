@@ -1,9 +1,10 @@
-name: RaGOO
+name: ragtag
 channels:
-  - conda-forge
   - bioconda
+  - conda-forge
 dependencies:
   - minimap2
-  - python=3
+  - ragtag
   - numpy
   - intervaltree
+  - pysam

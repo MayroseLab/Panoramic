@@ -18,7 +18,8 @@ wget https://ftp.ncbi.nlm.nih.gov/genomes/genbank/fungi/Saccharomyces_cerevisiae
 wget https://ftp.ncbi.nlm.nih.gov/genomes/genbank/fungi/Saccharomyces_cerevisiae/latest_assembly_versions/GCA_000149365.1_ASM14936v1/GCA_000149365.1_ASM14936v1_rna_from_genomic.fna.gz
 gzip -d *.gz
 sed -i 's/>.*locus_tag=\([^]]*\)].*/>rna-\1/' GCA_000149365.1_ASM14936v1_rna_from_genomic.fna
-sed -i 's/>.*locus_tag=\([^]]*\)].*/>rna-\1/' GCA_000149365.1_ASM14936v1_protein.faa
+python fix_ids.py > GCA_000149365.1_ASM14936v1_protein.faa.fix
+mv GCA_000149365.1_ASM14936v1_protein.faa.fix GCA_000149365.1_ASM14936v1_protein.faa
 
 # T73
 wget http://sgd-archive.yeastgenome.org/sequence/strains/T73/T73_WashU_2011_AFDF01000000/T73_WashU_2011_AFDF01000000.fsa.gz
