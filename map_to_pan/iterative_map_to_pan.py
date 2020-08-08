@@ -31,6 +31,14 @@ if __name__ == "__main__":
   parser.add_argument('--min_len', default=1, type=int, help='Minimal sequence length to add to pan')
   args = parser.parse_args()
 
+  # make sure required scripts are available
+  script_dir = os.path.dirname(sys.argv[0])
+  extract_script = os.path.join(script_dir, "extract_novel_regions_from_paf.py")
+  filter_fasta_script = os.path.join(os.path.dirname(script_dir),"util/filter_fasta_by_gff.py")
+  for script in [extract_script, filter_fasta_script]:  
+    if not os.path.isfile(script):
+      exit("Required script %s file is missing" % script)
+
   # re-write ref fasta so record
   # names only include simple IDs
   ref_recs = SeqIO.parse(args.ref_fasta, "fasta")
@@ -64,8 +72,6 @@ if __name__ == "__main__":
       os.system("minimap2 -x asm5 -L -t %s %s %s -o %s -c" % (args.cpus, pan_fasta, assembly_fasta, out_paf))
 
       # extract novel sequences
-      script_dir = os.path.dirname(sys.argv[0])
-      extract_script = os.path.join(script_dir, "extract_novel_regions_from_paf.py")
       novel_seq_fasta = os.path.join(args.out_dir, "%s_novel.fasta" % genome_name)
       if genome_gff:
         novel_gff = os.path.join(args.out_dir, "%s_novel.gff" % genome_name)
@@ -75,7 +81,6 @@ if __name__ == "__main__":
 
       # get novel proteins (if available)
       if proteins_fasta:
-        filter_fasta_script = os.path.join(os.path.dirname(script_dir),"filter_fasta_by_gff.py")
         novel_proteins = os.path.join(args.out_dir, "%s_novel_proteins.fasta" % genome_name)
         os.system("python %s %s %s %s mRNA ID" %(filter_fasta_script, novel_gff, proteins_fasta,  novel_proteins))
 
