@@ -239,16 +239,42 @@ rule filter_contigs:
         python {params.filter_script} {input} {params.min_length} {params.min_coverage} {output}
         """
 
-rule assembly_busco:
+rule ref_guided_assembly:
     """
-    Run BUSCO on filtered contigs
+    Assemble contigs into pseudomolecules
+    by mapping to the reference genome and
+    using reference-guided assembly
     """
     input:
-        config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contigs_filter.fasta"
+        contigs=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contigs_filter.fasta",
+        ref_genome=config['reference_genome'],
     output:
-        config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/BUSCO/short_summary.BUSCO.txt"
+        config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/ragtag.scaffolds.fasta",
+        config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/ragtag.scaffolds.agp"
     params:
-        assembly_dir=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}",
+        out_dir=config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}",
+        queue=config['queue'],
+        priority=config['priority'],
+        ppn=config['ppn'],
+        logs_dir=LOGS_DIR
+    conda:
+        CONDA_ENV_DIR + '/RagTag.yml'
+    shell:
+        """
+        cd {params.out_dir}
+        ragtag.py scaffold {input.ref_genome} {input.contigs} -C -r -g 10 -t {params.ppn}
+        """
+
+rule assembly_busco:
+    """
+    Run BUSCO on assembly
+    """
+    input:
+        config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/ragtag.scaffolds.fasta"
+    output:
+       config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/BUSCO/short_summary.BUSCO.txt"
+    params:
+        assembly_dir=config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output",
         busco_set=config['busco_set'],
         queue=config['queue'],
         priority=config['priority'],
@@ -394,7 +420,7 @@ rule prep_tsv_for_LQ_samples:
     from assembled LQ samples
     """
     input:
-        expand(config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contigs.fasta", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()])
+        expand(config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/ragtag.scaffolds.fasta", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()])
     output:
         config["out_dir"] + "/all_samples/pan_genome/samples.tsv"
     params:
@@ -932,7 +958,7 @@ rule calculate_LQ_mRNA_cov:
         bam=config["out_dir"] + "/per_sample/{sample}/map_to_pan_{ena_ref}/{ena_ref}_map_to_pan.sort.bam"
     output:
         order=config["out_dir"] + "/per_sample/{sample}/map_to_pan_{ena_ref}/{ena_ref}.order",
-        sorted_bed=config["out_dir"] + "/per_sample/{sample}/map_to_pan_{ena_ref}//pan_mRNA.sort.bed",
+        sorted_bed=config["out_dir"] + "/per_sample/{sample}/map_to_pan_{ena_ref}/pan_mRNA.sort.bed",
         filtered_bam=config["out_dir"] + "/per_sample/{sample}/map_to_pan_{ena_ref}/{ena_ref}_map_to_pan.filter.sort.bam",
         cov=config["out_dir"] + "/per_sample/{sample}/map_to_pan_{ena_ref}/{ena_ref}_map_to_pan.bedCovHist"
     params:
@@ -1055,6 +1081,7 @@ rule calculate_stepwise_stats:
         """
         python {params.stepwise_script} {input} 100 {output}
         """
+
 rule prep_for_collect_stats:
     """
     Prepare the TSV required for
@@ -1062,7 +1089,8 @@ rule prep_for_collect_stats:
     """
     input:
         quast=expand(config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/QUAST/report.tsv", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()]),
-        busco=expand(config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/BUSCO/short_summary.BUSCO.txt", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()])
+        busco=expand(config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/BUSCO/short_summary.BUSCO.txt", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()]),
+        ragtag=expand(config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/ragtag.scaffolds.fasta", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()])
     output:
         config["out_dir"] + "/all_samples/stats/assembly_stats_files.tsv"
     params:
@@ -1072,7 +1100,7 @@ rule prep_for_collect_stats:
         logs_dir=LOGS_DIR,
     shell:
         """
-        paste <(echo {params.samples} | tr ' ' '\n') <(echo {input.quast} | tr ' ' '\n') <(echo {input.busco} | tr ' ' '\n') > {output}
+        paste <(echo {params.samples} | tr ' ' '\n') <(echo {input.quast} | tr ' ' '\n') <(echo {input.busco} | tr ' ' '\n') <(echo {input.ragtag} | tr ' ' '\n') > {output}
         """
 
 rule collect_assembly_stats:
