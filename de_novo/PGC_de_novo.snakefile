@@ -20,6 +20,10 @@ print(sys.version)
 sys.path.append(utils_dir)
 from snakemakeUtils import *
 
+# get configfile path
+i = sys.argv.index('--configfile')
+config_path = sys.argv[i+1]
+
 def init():
     #load_info_file
     config['samples_info'] = SampleInfoReader.sample_table_reader(filename=config['samples_info_file'],
@@ -1240,15 +1244,17 @@ rule create_report_notebook:
     output:
         config["out_dir"] + "/all_samples/stats/report.ipynb"
     params:
-        ref_name=config['reference_name'] + "_REF",
+        ref_name=config['reference_name'],
+        conf=config_path,
         nb_template=pan_genome_report_dir + '/report_template.ipynb',
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR,
     shell:
         """
-        sed -e 's|<PAV_TSV>|{input.pav_tsv}|' -e 's|<SYEPWISE_TSV>|{input.stepwise_tsv}|' -e 's|<REF_NAME>|{params.ref_name}|' -e 's|<PROT_FASTA>|{input.proteins_fasta}|' -e 's|<STATS_TSV>|{input.assembly_stats_tsv}|' {params.nb_template} > {output}
+        sed -e 's|<PIPELINE>|Panoramic de-novo|' -e 's|<CONF>|{params.conf}|' -e 's|<PAV_TSV>|{input.pav_tsv}|' -e 's|<SYEPWISE_TSV>|{input.stepwise_tsv}|' -e 's|<REF_NAME>|{params.ref_name}|' -e 's|<PROT_FASTA>|{input.proteins_fasta}|' -e 's|<STATS_TSV>|{input.assembly_stats_tsv}|' {params.nb_template} > {output}
         """
+
 
 rule create_report_html:
     """
