@@ -242,15 +242,16 @@ rule filter_contigs:
 rule ref_guided_assembly:
     """
     Assemble contigs into pseudomolecules
-    by mapping to the reference genome and
-    using reference-guided assembly
+    by mapping to the reference genome,
+    breaking chimeric contigs and then scaffolding
     """
     input:
         contigs=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contigs_filter.fasta",
         ref_genome=config['reference_genome'],
     output:
-        config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/ragtag.scaffolds.fasta",
-        config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/ragtag.scaffolds.agp"
+        corrected=config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/contigs_filter.corrected.fasta",
+        pm=config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/ragtag.scaffolds.fasta",
+        pm_agp=config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/ragtag.scaffolds.agp"
     params:
         out_dir=config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}",
         queue=config['queue'],
@@ -262,7 +263,8 @@ rule ref_guided_assembly:
     shell:
         """
         cd {params.out_dir}
-        ragtag.py scaffold {input.ref_genome} {input.contigs} -C -r -g 10 -t {params.ppn}
+        ragtag.py correct {input.ref_genome} {input.contigs} -b 100
+        ragtag.py scaffold {input.ref_genome} {output.corrected} -C -r -g 10 -t {params.ppn}
         """
 
 rule assembly_busco:
