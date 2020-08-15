@@ -718,7 +718,7 @@ rule match_gff:
         gff=config["out_dir"] + "/all_samples/annotation/maker.genes.rename.filter.gff"
     output:
         gff=config["out_dir"] + "/all_samples/annotation/maker.genes.rename.filter.no_dupl.no_redun.gff",
-        filter_list=config["out_dir"] + "/all_samples/annotation//maker.genes.rename.filter.no_dupl.no_redun.list"
+        filter_list=config["out_dir"] + "/all_samples/annotation/maker.genes.rename.filter.no_dupl.no_redun.list"
     params:
         filter_gff_script=utils_dir + '/filter_gff_by_id_list.py',
         queue=config['queue'],
