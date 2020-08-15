@@ -432,7 +432,7 @@ rule prep_tsv_for_LQ_samples:
     shell:
         """
         echo "sample\tgenome_fasta" > {output}
-        echo "{input}" | tr ' ' '\n' | awk '{{split($0,a,"/"); print a[length(a)-2]"\t"$0}}' >> {output}
+        echo "{input}" | tr ' ' '\n' | awk '{{split($0,a,"/"); print a[length(a)-3]"\t"$0}}' >> {output}
         """
 
 rule iterative_map_to_pan_LQ:
