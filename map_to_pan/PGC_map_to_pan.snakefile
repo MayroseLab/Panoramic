@@ -239,16 +239,44 @@ rule filter_contigs:
         python {params.filter_script} {input} {params.min_length} {params.min_coverage} {output}
         """
 
-rule assembly_busco:
+rule ref_guided_assembly:
     """
-    Run BUSCO on filtered contigs
+    Assemble contigs into pseudomolecules
+    by mapping to the reference genome,
+    breaking chimeric contigs and then scaffolding
     """
     input:
-        config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contigs_filter.fasta"
+        contigs=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contigs_filter.fasta",
+        ref_genome=config['reference_genome'],
     output:
-        config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/BUSCO/short_summary.BUSCO.txt"
+        corrected=config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/contigs_filter.corrected.fasta",
+        pm=config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/ragtag.scaffolds.fasta",
+        pm_agp=config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/ragtag.scaffolds.agp"
     params:
-        assembly_dir=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}",
+        out_dir=config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}",
+        queue=config['queue'],
+        priority=config['priority'],
+        ppn=config['ppn'],
+        logs_dir=LOGS_DIR
+    conda:
+        CONDA_ENV_DIR + '/RagTag.yml'
+    shell:
+        """
+        cd {params.out_dir}
+        ragtag.py correct {input.ref_genome} {input.contigs} -b 100
+        ragtag.py scaffold {input.ref_genome} {output.corrected} -C -r -g 10 -t {params.ppn}
+        """
+
+rule assembly_busco:
+    """
+    Run BUSCO on assembly
+    """
+    input:
+        config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/ragtag.scaffolds.fasta"
+    output:
+       config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/BUSCO/short_summary.BUSCO.txt"
+    params:
+        assembly_dir=config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output",
         busco_set=config['busco_set'],
         queue=config['queue'],
         priority=config['priority'],
@@ -268,14 +296,14 @@ rule assembly_quast:
     Run QUAST on filtered assembly to get assembly stats and QA
     """
     input:
-        contigs=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contigs_filter.fasta",
+        contigs=config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/contigs_filter.corrected.fasta",
         r1=config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}_1_clean_paired.fastq.gz",
         r2=config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}_2_clean_paired.fastq.gz"
     output:
-        config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/QUAST/report.html",
-        config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/QUAST/report.tsv"
+        config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/QUAST/report.html",
+        config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/QUAST/report.tsv"
     params:
-        out_dir=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/QUAST",
+        out_dir=config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/QUAST",
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR,
@@ -394,7 +422,7 @@ rule prep_tsv_for_LQ_samples:
     from assembled LQ samples
     """
     input:
-        expand(config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contigs.fasta", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()])
+        expand(config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/ragtag.scaffolds.fasta", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()])
     output:
         config["out_dir"] + "/all_samples/pan_genome/samples.tsv"
     params:
@@ -404,7 +432,7 @@ rule prep_tsv_for_LQ_samples:
     shell:
         """
         echo "sample\tgenome_fasta" > {output}
-        echo "{input}" | tr ' ' '\n' | awk '{{split($0,a,"/"); print a[length(a)-2]"\t"$0}}' >> {output}
+        echo "{input}" | tr ' ' '\n' | awk '{{split($0,a,"/"); print a[length(a)-3]"\t"$0}}' >> {output}
         """
 
 rule iterative_map_to_pan_LQ:
@@ -690,7 +718,7 @@ rule match_gff:
         gff=config["out_dir"] + "/all_samples/annotation/maker.genes.rename.filter.gff"
     output:
         gff=config["out_dir"] + "/all_samples/annotation/maker.genes.rename.filter.no_dupl.no_redun.gff",
-        filter_list=config["out_dir"] + "/all_samples/annotation//maker.genes.rename.filter.no_dupl.no_redun.list"
+        filter_list=config["out_dir"] + "/all_samples/annotation/maker.genes.rename.filter.no_dupl.no_redun.list"
     params:
         filter_gff_script=utils_dir + '/filter_gff_by_id_list.py',
         queue=config['queue'],
@@ -932,7 +960,7 @@ rule calculate_LQ_mRNA_cov:
         bam=config["out_dir"] + "/per_sample/{sample}/map_to_pan_{ena_ref}/{ena_ref}_map_to_pan.sort.bam"
     output:
         order=config["out_dir"] + "/per_sample/{sample}/map_to_pan_{ena_ref}/{ena_ref}.order",
-        sorted_bed=config["out_dir"] + "/per_sample/{sample}/map_to_pan_{ena_ref}//pan_mRNA.sort.bed",
+        sorted_bed=config["out_dir"] + "/per_sample/{sample}/map_to_pan_{ena_ref}/pan_mRNA.sort.bed",
         filtered_bam=config["out_dir"] + "/per_sample/{sample}/map_to_pan_{ena_ref}/{ena_ref}_map_to_pan.filter.sort.bam",
         cov=config["out_dir"] + "/per_sample/{sample}/map_to_pan_{ena_ref}/{ena_ref}_map_to_pan.bedCovHist"
     params:
@@ -1055,14 +1083,16 @@ rule calculate_stepwise_stats:
         """
         python {params.stepwise_script} {input} 100 {output}
         """
+
 rule prep_for_collect_stats:
     """
     Prepare the TSV required for
     collecting assembly stats
     """
     input:
-        quast=expand(config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/QUAST/report.tsv", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()]),
-        busco=expand(config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/BUSCO/short_summary.BUSCO.txt", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()])
+        quast=expand(config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/QUAST/report.tsv", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()]),
+        busco=expand(config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/BUSCO/short_summary.BUSCO.txt", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()]),
+        ragtag=expand(config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/ragtag.scaffolds.fasta", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()])
     output:
         config["out_dir"] + "/all_samples/stats/assembly_stats_files.tsv"
     params:
@@ -1072,7 +1102,7 @@ rule prep_for_collect_stats:
         logs_dir=LOGS_DIR,
     shell:
         """
-        paste <(echo {params.samples} | tr ' ' '\n') <(echo {input.quast} | tr ' ' '\n') <(echo {input.busco} | tr ' ' '\n') > {output}
+        paste <(echo {params.samples} | tr ' ' '\n') <(echo {input.quast} | tr ' ' '\n') <(echo {input.busco} | tr ' ' '\n') <(echo {input.ragtag} | tr ' ' '\n') > {output}
         """
 
 rule collect_assembly_stats:
