@@ -228,42 +228,19 @@ rule filter_contigs:
         python {params.filter_script} {input} {params.min_length} {params.min_coverage} {output}
         """
 
-rule assembly_quast:
-    """
-    Run QUAST on assembly to get assembly stats and QA
-    """
-    input:
-        contigs=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contigs_filter.fasta",
-        r1=config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}_1_clean_paired.fastq.gz",
-        r2=config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}_2_clean_paired.fastq.gz"
-    output:
-        config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/QUAST/report.html",
-        config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/QUAST/report.tsv"
-    params:
-        out_dir=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/QUAST",
-        queue=config['queue'],
-        priority=config['priority'],
-        logs_dir=LOGS_DIR,
-        ppn=config['ppn']
-    conda:
-        CONDA_ENV_DIR + '/quast.yml'
-    shell:
-        """
-        quast {input.contigs} -o {params.out_dir} -t {params.ppn} -1 {input.r1} -2 {input.r2}
-        """
-
 rule ref_guided_assembly:
     """
     Assemble contigs into pseudomolecules
-    by mapping to the reference genome and
-    using reference-guided assembly
+    by mapping to the reference genome,
+    breaking chimeric contigs and then scaffolding
     """
     input:
         contigs=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contigs_filter.fasta",
         ref_genome=config['reference_genome'],
     output:
-        config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/ragtag.scaffolds.fasta",
-        config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/ragtag.scaffolds.agp"
+        corrected=config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/contigs_filter.corrected.fasta",
+        pm=config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/ragtag.scaffolds.fasta",
+        pm_agp=config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/ragtag.scaffolds.agp"
     params:
         out_dir=config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}",
         queue=config['queue'],
@@ -275,7 +252,8 @@ rule ref_guided_assembly:
     shell:
         """
         cd {params.out_dir}
-        ragtag.py scaffold {input.ref_genome} {input.contigs} -C -r -g 10 -t {params.ppn}
+        ragtag.py correct {input.ref_genome} {input.contigs} -b 100
+        ragtag.py scaffold {input.ref_genome} {output.corrected} -C -r -g 10 -t {params.ppn}
         """
 
 rule assembly_busco:
@@ -300,6 +278,30 @@ rule assembly_busco:
         cd {params.assembly_dir}
         busco -i {input} -o BUSCO -m genome -l {params.busco_set} -c {params.ppn} -f
         cp {params.assembly_dir}/BUSCO/short_summary.specific.{params.busco_set}.BUSCO.txt {output}
+        """
+
+rule assembly_quast:
+    """
+    Run QUAST on filtered assembly to get assembly stats and QA
+    """
+    input:
+        contigs=config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/contigs_filter.corrected.fasta",
+        r1=config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}_1_clean_paired.fastq.gz",
+        r2=config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}_2_clean_paired.fastq.gz"
+    output:
+        config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/QUAST/report.html",
+        config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/QUAST/report.tsv"
+    params:
+        out_dir=config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/QUAST",
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR,
+        ppn=config['ppn']
+    conda:
+        CONDA_ENV_DIR + '/quast.yml'
+    shell:
+        """
+        quast {input.contigs} -o {params.out_dir} -t {params.ppn} -1 {input.r1} -2 {input.r2}
         """
 
 rule prep_liftover:
@@ -1192,7 +1194,7 @@ rule prep_for_collect_stats:
     collecting assembly stats
     """
     input:
-        quast=expand(config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/QUAST/report.tsv", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()]),
+        quast=expand(config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/QUAST/report.tsv", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()]),
         busco=expand(config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/BUSCO/short_summary.BUSCO.txt", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()]),
         ragtag=expand(config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/ragtag.scaffolds.fasta", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()])
     output:
