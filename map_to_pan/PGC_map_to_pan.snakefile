@@ -23,6 +23,10 @@ sys.path.append(utils_dir)
 from snakemakeUtils import *
 from collections import OrderedDict
 
+# get configfile path
+i = sys.argv.index('--configfile')
+config_path = sys.argv[i+1]
+
 def init():
     #load_info_file
     config['samples_info'] = SampleInfoReader.sample_table_reader(filename=config['samples_info_file'],
@@ -1084,6 +1088,24 @@ rule calculate_stepwise_stats:
         python {params.stepwise_script} {input} 100 {output}
         """
 
+rule get_read_length:
+    """
+    Find raw data read length for stats report
+    """
+    input:
+        config["out_dir"] + "/per_sample/{sample}/data/{ena_ref}_1.fastq.gz"
+    output:
+        config["out_dir"] + "/per_sample/{sample}/data/{ena_ref}.read_length"
+    params:
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    shell:
+        """
+        set +o pipefail;
+        zcat {input} | head -2 | tail -1 | wc | awk '{{print $3}}' > {output}
+        """
+
 rule prep_for_collect_stats:
     """
     Prepare the TSV required for
@@ -1093,6 +1115,7 @@ rule prep_for_collect_stats:
         quast=expand(config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/QUAST/report.tsv", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()]),
         busco=expand(config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/BUSCO/short_summary.BUSCO.txt", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()]),
         ragtag=expand(config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/ragtag.scaffolds.fasta", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()])
+        read_length=expand(config["out_dir"] + "/per_sample/{sample}/data/{ena_ref}.read_length", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()])
     output:
         config["out_dir"] + "/all_samples/stats/assembly_stats_files.tsv"
     params:
@@ -1102,7 +1125,7 @@ rule prep_for_collect_stats:
         logs_dir=LOGS_DIR,
     shell:
         """
-        paste <(echo {params.samples} | tr ' ' '\n') <(echo {input.quast} | tr ' ' '\n') <(echo {input.busco} | tr ' ' '\n') <(echo {input.ragtag} | tr ' ' '\n') > {output}
+        paste <(echo {params.samples} | tr ' ' '\n') <(echo {input.quast} | tr ' ' '\n') <(echo {input.busco} | tr ' ' '\n') <(echo {input.ragtag} | tr ' ' '\n') <(echo {input.read_length} | tr ' ' '\n') > {output}
         """
 
 rule collect_assembly_stats:
@@ -1139,13 +1162,14 @@ rule create_report_notebook:
         config["out_dir"] + "/all_samples/stats/report.ipynb"
     params:
         ref_name=config['reference_name'],
+        conf=config_path,
         nb_template=pan_genome_report_dir + '/report_template.ipynb',
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR,
     shell:
         """
-        sed -e 's|<PAV_TSV>|{input.pav_tsv}|' -e 's|<SYEPWISE_TSV>|{input.stepwise_tsv}|' -e 's|<REF_NAME>|{params.ref_name}|' -e 's|<PROT_FASTA>|{input.proteins_fasta}|' -e 's|<STATS_TSV>|{input.assembly_stats_tsv}|' {params.nb_template} > {output}
+        sed -e 's|<PIPELINE>|Panoramic map-to-pan|' -e 's|<CONF>|{params.conf}|' -e 's|<PAV_TSV>|{input.pav_tsv}|' -e 's|<SYEPWISE_TSV>|{input.stepwise_tsv}|' -e 's|<REF_NAME>|{params.ref_name}|' -e 's|<PROT_FASTA>|{input.proteins_fasta}|' -e 's|<STATS_TSV>|{input.assembly_stats_tsv}|' {params.nb_template} > {output}
         """
 
 rule create_report_html:
