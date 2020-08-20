@@ -71,7 +71,7 @@ with PafFile(args.in_paf) as paf:
       if iv_len > args.min_region:
         unmapped_seq = genome_dict[chrom].seq[iv.begin:iv.end]
         # if unmapped sequence is entirely made of gaps - skip
-        if unmapped_seq.replace('N','') == '':
+        if str(unmapped_seq).replace('N','') == '':
           continue
         unmapped_name = "%s%s_%s-%s" %(args.genome_name, chrom, iv.begin, iv.begin+len(unmapped_seq))
         unmapped_rec = SeqRecord(unmapped_seq, id=unmapped_name, description='')
