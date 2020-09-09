@@ -1229,12 +1229,13 @@ rule prep_for_collect_stats:
         config["out_dir"] + "/all_samples/stats/assembly_stats_files.tsv"
     params:
         samples=' '.join(config['samples_info'].keys()),
+        n_samples=len(config['samples_info']),
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR,
     shell:
         """
-        paste <(echo {params.samples} | tr ' ' '\n') <(echo {input.quast} | tr ' ' '\n') <(echo {input.busco} | tr ' ' '\n') <(echo {input.ragtag} | tr ' ' '\n') <(echo {input.read_length} | tr ' ' '\n') > {output}
+        paste <(echo {params.samples} | tr ' ' '\\n') <(echo {input.quast} | tr ' ' '\\n') <(echo {input.busco} | tr ' ' '\\n') <(echo {input.ragtag} | tr ' ' '\\n') <(echo {input.read_length} | tr ' ' '\\n') > {output}
         """
 
 rule collect_assembly_stats:
