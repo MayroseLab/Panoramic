@@ -494,6 +494,11 @@ rule get_liftover_proteins:
         python {params.filter_fasta_script} {input.gff} {input.fasta} {output} mRNA ID
         """
 
+def calc_n_chunks(max_jobs, n_samples):
+    if n_samples < 1:
+        return 0
+    return max_jobs//n_samples - 1
+
 rule prep_chunks:
     """
     Divide assembly into chunks for efficient parallel analysis
@@ -503,7 +508,7 @@ rule prep_chunks:
     output:
         config["out_dir"] + "/per_sample/{sample}/chunks_{ena_ref}/chunks.lft"
     params:
-        n_chunks=config['max_jobs']//len(config['samples_info']) - 1,
+        n_chunks=calc_n_chunks(config['max_jobs'],len(config['samples_info'])),
         out_pref=config["out_dir"] + "/per_sample/{sample}/chunks_{ena_ref}/chunk",
         queue=config['queue'],
         priority=config['priority'],
@@ -584,7 +589,7 @@ rule maker_annotation:
     params:
         run_maker_in_chunks_snakefile=annotation_pipeline_dir + '/run_MAKER_in_chunks.snakefile',
         queue=config['queue'],
-        jobs=config['max_jobs']//len(config['samples_info']),
+        jobs=calc_n_chunks(config['max_jobs'],len(config['samples_info'])),
         annotation_dir=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}",
         qsub_wrapper_script=utils_dir + '/pbs_qsub_snakemake_wrapper.py',
         priority=config['priority'],
