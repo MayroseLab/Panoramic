@@ -123,7 +123,7 @@ rule download_fastq:
     shell:
         """
         # find ssh key in conda env
-        ssh=`find ./.snakemake/conda/ -name asperaweb_id_dsa.openssh`
+        ssh=`find ./.snakemake/conda/ -name asperaweb_id_dsa.openssh | head -1`
         # run
         python {input} {params.ena_ref} --output_directory {params.sample_out_dir} --ssh-key $ssh
         """

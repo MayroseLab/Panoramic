@@ -112,7 +112,7 @@ rule download_fastq:
     shell:
         """
         # find ssh key in conda env
-        ssh=`find ./.snakemake/conda/ -name asperaweb_id_dsa.openssh`
+        ssh=`find ./.snakemake/conda/ -name asperaweb_id_dsa.openssh | head -1`
         # run
         python {input} {params.ena_ref} --output_directory {params.sample_out_dir} --ssh-key $ssh
         """
@@ -1235,7 +1235,9 @@ rule prep_for_collect_stats:
         logs_dir=LOGS_DIR,
     shell:
         """
-        paste <(echo {params.samples} | tr ' ' '\\n') <(echo {input.quast} | tr ' ' '\\n') <(echo {input.busco} | tr ' ' '\\n') <(echo {input.ragtag} | tr ' ' '\\n') <(echo {input.read_length} | tr ' ' '\\n') > {output}
+        set -e
+        paste <(echo {params.samples} | tr ' ' "\\n") <(echo {input.quast} | tr ' ' "\\n") <(echo {input.busco} | tr ' ' "\\n") <(echo {input.ragtag} | tr ' ' "\\n") <(echo {input.read_length} | tr ' ' "\\n") > {output}
+        exit 0
         """
 
 rule collect_assembly_stats:
