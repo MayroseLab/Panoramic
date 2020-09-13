@@ -285,7 +285,7 @@ rule assembly_busco:
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR,
-        ppn=config['ppn']
+        ppn=config['ppn'] + 1
     conda:
         CONDA_ENV_DIR + '/busco.yml'
     shell:
