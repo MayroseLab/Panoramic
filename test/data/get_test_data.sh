@@ -31,3 +31,6 @@ head -13983 T73_AFDF01000000.gff | awk '$3 != "contig"' | awk '$3 == "gene" {spl
 mv T73_AFDF01000000.gff.tmp T73_AFDF01000000.gff
 sed -i 's/ .*/_mRNA/' T73_AFDF01000000_pep.fsa
 sed -i 's/ .*/_mRNA/' T73_AFDF01000000_cds.fsa
+
+# dummy repeats
+echo -e ">dummy\nAGAG" > repeats.fa
