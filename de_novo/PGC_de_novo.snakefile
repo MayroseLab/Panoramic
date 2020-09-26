@@ -59,7 +59,7 @@ onerror:
 #                RULES              |
 #------------------------------------
 
-localrules: all, prep_liftover_chunks_tsv, prep_annotation_chunks_tsv, prep_liftover_yaml, prep_annotation_yaml, require_evidence
+localrules: all, prep_liftover_chunks_tsv, prep_annotation_chunks_tsv, prep_liftover_yaml, prep_annotation_yaml
 
 rule all:
     input:
@@ -927,7 +927,8 @@ rule prep_for_orthofinder:
     matching genome names.
     """
     input:
-        fasta=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.proteins_filter_nodupl.fasta"
+        fasta=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.proteins_filter_nodupl.fasta",
+        evidence=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/evidence/done"
     output:
         config["out_dir"] + "/all_samples/orthofinder/{sample}_{ena_ref}_LQ.fasta"
     params:
