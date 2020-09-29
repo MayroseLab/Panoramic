@@ -816,7 +816,7 @@ rule index_evidence_gff:
         config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/evidence/maker.all.chr.pred_gff:maker.gff",
         config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/evidence/maker.all.chr.protein2genome.gff",
         config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/evidence/chunks.bed",
-        config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/QUAST/report.html",
+        config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/QUAST/report.html",
         config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/BUSCO/short_summary.BUSCO.txt"
     output:
         config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/evidence/done"
