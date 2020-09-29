@@ -10,12 +10,22 @@ from Bio import SeqIO
 import sys
 from os import remove
 from time import time
+import argparse
 
-in_gff = sys.argv[1]
-in_fasta = sys.argv[2]
-out_fasta = sys.argv[3]
-feature_type = sys.argv[4]  # e.g. gene or mRNA
-name_attribute = sys.argv[5] # e.g. ID or transcript_id
+parser = argparse.ArgumentParser()
+parser.add_argument('in_gff', help='input GFF3 file')
+parser.add_argument('in_fasta', help='input FASTA file')
+parser.add_argument('output_gff', help='output filtered FASTA file')
+parser.add_argument('feature_type', help='feature type to look at in GFF3 file (e.g. gene or mRNA)')
+parser.add_argument('name_attribute', help='attribute in GFF3 file that identifies the record (e.g. ID or transcript_id)')
+parser.add_argument('--min_len', default=0, type=int, help='discard fasta records shorter than min_len')
+args = parser.parse_args()
+
+in_gff = args.in_gff
+in_fasta = args.in_fasta
+out_fasta = args.out_fasta
+feature_type = args.feature_type
+name_attribute = args.name_attribute
 
 # create list of desired names
 db_path = "tmp_%s.sqlite3" % time()
@@ -29,7 +39,7 @@ remove(db_path)
 records = []
 with open(in_fasta) as f:
   for rec in SeqIO.parse(f, "fasta"):
-    if rec.id in names:
+    if rec.id in names and len(rec.seq) >= args.min_len:
       rec.description = ''
       records.append(rec)
 

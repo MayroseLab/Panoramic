@@ -977,6 +977,7 @@ rule get_ref_proteins:
         config["out_dir"] + "/all_samples/orthofinder/" + config['reference_name'] + '_REF.fasta'
     params:
         filter_fasta_script=utils_dir + '/filter_fasta_by_gff.py',
+        min_protein=config['min_protein'],
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR
@@ -984,7 +985,7 @@ rule get_ref_proteins:
         CONDA_ENV_DIR + '/gffutils.yml'
     shell:
         """
-        python {params.filter_fasta_script} {input.gff} {input.fasta} {output} mRNA ID
+        python {params.filter_fasta_script} {input.gff} {input.fasta} {output} mRNA ID --min_len {params.min_protein}
         """
 
 rule make_ref_blast_db:
@@ -1042,6 +1043,7 @@ rule get_hq_sample_proteins:
         config["out_dir"] + "/all_samples/orthofinder/{sample}_HQ.fasta"
     params:
         filter_fasta_script=utils_dir + '/filter_fasta_by_gff.py',
+        min_protein=config['min_protein'],
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR
@@ -1049,7 +1051,7 @@ rule get_hq_sample_proteins:
         CONDA_ENV_DIR + '/gffutils.yml'
     shell:
         """
-        python {params.filter_fasta_script} {input.gff} {input.fasta} {output} mRNA ID
+        python {params.filter_fasta_script} {input.gff} {input.fasta} {output} mRNA ID --min_len {params.min_protein}
         """
 
 rule get_ref_transcripts:
