@@ -388,22 +388,27 @@ rule predict_liftover_proteins:
     from liftover transcripts
     """
     input:
-        config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/gawn/05_results/liftover_transcripts.fasta"
+        fastaconfig["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/gawn/05_results/liftover_transcripts.fasta"
+        ref=config["out_dir"] + "/all_samples/orthofinder/" + config['reference_name'] + '_REF.fasta',
+        ref_db=config["out_dir"] + "/all_samples/orthofinder/" + config['reference_name'] + '_REF.fasta.psq'
     output:
         gff=config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/gawn/05_results/liftover_transcripts.fasta.transdecoder.gff3",
         pep=config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/gawn/05_results/liftover_transcripts.fasta.transdecoder.pep"
     params:
         wdir=config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/gawn/05_results/",
+        min_protein=max(50,config['min_protein']),
         queue=config['queue'],
         priority=config['priority'],
+        ppn=config['ppn'],
         logs_dir=LOGS_DIR
     conda:
         CONDA_ENV_DIR + '/TransDecoder.yml'
     shell:
         """
         cd {params.wdir}
-        TransDecoder.LongOrfs -t {input} -m 1
-        TransDecoder.Predict -t {input} --single_best_only --no_refine_starts
+        TransDecoder.LongOrfs -t {input.fasta} -m {params.min_protein}
+        blastp -query liftover_transcripts.fasta.transdecoder_dir/longest_orfs.pep -db {input.ref} -max_target_seqs 1 -outfmt 6 -evalue 1e-5 -num_threads {params.ppn} > blastp.outfmt6
+        TransDecoder.Predict -t {input.fasta} --single_best_only --no_refine_starts --retain_blastp_hits blastp.outfmt6
         """
 
 rule simplify_transdecoder_protein_names:
