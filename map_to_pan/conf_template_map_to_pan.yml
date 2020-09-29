@@ -27,6 +27,7 @@ repeats_library:
 transcripts:
 proteins:
 augustus_species:
+min_protein: 50
 
 # Annotation filtration
 max_aed: 0.4

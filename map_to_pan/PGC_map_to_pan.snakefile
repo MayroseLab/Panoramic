@@ -552,6 +552,7 @@ rule prep_annotation_yaml:
         proteins=config['proteins'],
         repeats_library=config['repeats_library'],
         augustus_species=config['augustus_species'],
+        min_protein=config['min_protein'],
         maker_load=config['maker_load'],
         queue=config['queue'],
         priority=config['priority'],
@@ -567,7 +568,7 @@ rule prep_annotation_yaml:
         echo "sample: non_ref_contigs" >> {output}
         echo "logs_dir: {params.logs_dir}" >> {output}
         echo "maker_load: {params.maker_load}" >> {output}
-        echo config_kv_pairs: est={params.transcripts} protein={params.proteins} rmlib={params.repeats_library} augustus_species={params.augustus_species} >> {output}
+        echo config_kv_pairs: est={params.transcripts} protein={params.proteins} rmlib={params.repeats_library} augustus_species={params.augustus_species} min_protein={params.min_protein} >> {output}
         """
 
 rule maker_annotation:
