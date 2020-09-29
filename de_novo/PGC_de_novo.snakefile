@@ -388,7 +388,7 @@ rule predict_liftover_proteins:
     from liftover transcripts
     """
     input:
-        fastaconfig["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/gawn/05_results/liftover_transcripts.fasta"
+        fasta=config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/gawn/05_results/liftover_transcripts.fasta",
         ref=config["out_dir"] + "/all_samples/orthofinder/" + config['reference_name'] + '_REF.fasta',
         ref_db=config["out_dir"] + "/all_samples/orthofinder/" + config['reference_name'] + '_REF.fasta.psq'
     output:
