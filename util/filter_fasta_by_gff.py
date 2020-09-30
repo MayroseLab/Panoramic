@@ -15,7 +15,7 @@ import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument('in_gff', help='input GFF3 file')
 parser.add_argument('in_fasta', help='input FASTA file')
-parser.add_argument('output_gff', help='output filtered FASTA file')
+parser.add_argument('out_fasta', help='output filtered FASTA file')
 parser.add_argument('feature_type', help='feature type to look at in GFF3 file (e.g. gene or mRNA)')
 parser.add_argument('name_attribute', help='attribute in GFF3 file that identifies the record (e.g. ID or transcript_id)')
 parser.add_argument('--min_len', default=0, type=int, help='discard fasta records shorter than min_len')
