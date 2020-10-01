@@ -87,7 +87,7 @@ rule run_maker:
         cd {params.run_dir}
         {params.maker_load}
         maker -b chunk -fix_nucleotides
-        if [ -f {log.index} ] && (( `grep STARTED {log.index} | wc -l` <= `grep FINISHED {log.index} | wc -l` )); then touch {output}; fi
+        if [ -f {log.index} ] && (( `grep STARTED {log.index} | wc -l` <= `grep FINISHED {log.index} | wc -l` )) && ((`grep FINISHED {log.index} | wc -l` > 0)); then touch {output}; fi
         """
 
 rule create_full_gff:
