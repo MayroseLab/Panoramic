@@ -29,6 +29,7 @@ if __name__ == "__main__":
   parser.add_argument('out_dir', help='Path to output directory')
   parser.add_argument('--cpus', default=1, type=int, help='Number of CPUs to use in Minimap')
   parser.add_argument('--min_len', default=1, type=int, help='Minimal sequence length to add to pan')
+  parser.add_argument('--min_protein', default=0, type=int, help='Minimal protein length of genes to be included in output gff')
   args = parser.parse_args()
 
   # make sure required scripts are available
@@ -75,7 +76,7 @@ if __name__ == "__main__":
       novel_seq_fasta = os.path.join(args.out_dir, "%s_novel.fasta" % genome_name)
       if genome_gff:
         novel_gff = os.path.join(args.out_dir, "%s_novel.gff" % genome_name)
-        os.system("python %s %s %s %s %s --in_gff %s --out_gff %s --genome_name %s" %(extract_script, out_paf, assembly_fasta, args.min_len, novel_seq_fasta, genome_gff, novel_gff, genome_name))
+        os.system("python %s %s %s %s %s --in_gff %s --out_gff %s --genome_name %s --min_protein %s" %(extract_script, out_paf, assembly_fasta, args.min_len, novel_seq_fasta, genome_gff, novel_gff, genome_name, args.min_protein))
       else:
         os.system("python %s %s %s %s %s --genome_name %s" %(extract_script, out_paf, assembly_fasta, args.min_len, novel_seq_fasta, genome_name))
 

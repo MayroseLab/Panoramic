@@ -26,6 +26,7 @@ maker_load: ""
 repeats_library:
 transcripts:
 proteins:
+annotation_config_templates:
 augustus_species:
 min_protein: 50
 

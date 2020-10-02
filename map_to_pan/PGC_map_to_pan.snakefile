@@ -344,14 +344,17 @@ rule remove_ref_alt_splicing:
     In case the reference annotation
     contains genes with multiple mRNAs,
     only keep the longest transcript.
+    Also, remove short proteins.
     """
     input:
-        config["out_dir"] + "/all_samples/ref/" + config['reference_name'] + '_simp.gff'
+        gff=config["out_dir"] + "/all_samples/ref/" + config['reference_name'] + '_simp.gff',
+        prot_fasta=config['reference_proteins']
     output:
         gff=config["out_dir"] + "/all_samples/ref/" + config['reference_name'] + '_longest_trans_simp.gff',
         table=config["out_dir"] + "/all_samples/ref/" + config['reference_name'] + '_longest_trans_simp.gff.gene_to_mRNA'
     params:
         longest_trans_script=utils_dir + '/remove_alt_splicing_from_gff.py',
+        min_protein=config['min_protein'],
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR
@@ -359,7 +362,7 @@ rule remove_ref_alt_splicing:
         CONDA_ENV_DIR + '/gffutils.yml'
     shell:
         """
-        python {params.longest_trans_script} {input} {output.gff}
+        python {params.longest_trans_script} {input.gff} {output.gff} {input.prot_fasta} {params.min_protein} ID
         """
 
 rule iterative_map_to_pan_HQ:
@@ -380,6 +383,7 @@ rule iterative_map_to_pan_HQ:
     params:
         map_to_pan_script=pipeline_dir + '/iterative_map_to_pan.py',
         min_len=config['min_length'],
+        min_protein=config['min_protein'],
         out_dir=config["out_dir"] + "/HQ_samples/HQ_pan",
         queue=config['queue'],
         priority=config['priority'],
@@ -389,7 +393,7 @@ rule iterative_map_to_pan_HQ:
         CONDA_ENV_DIR + '/iterative_map_to_pan.yml'
     shell:
         """
-        python {params.map_to_pan_script} {input.ref_genome} {input.ref_gff} {input.ref_proteins} {input.samples} {params.out_dir} --cpus {params.ppn} --min_len {params.min_len}
+        python {params.map_to_pan_script} {input.ref_genome} {input.ref_gff} {input.ref_proteins} {input.samples} {params.out_dir} --cpus {params.ppn} --min_len {params.min_len} --min_protein {params.min_protein}
         """
 
 rule remove_alt_splicing_from_HQ_pan:

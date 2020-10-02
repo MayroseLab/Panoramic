@@ -29,6 +29,7 @@ parser.add_argument('--in_gff', default=None, help='Input gff annotation of quer
 parser.add_argument('out_fasta', help='Output fasta file')
 parser.add_argument('--out_gff', default=None, help='Output gff file')
 parser.add_argument('--genome_name', default='', help='Name to include in contig names')
+parser.add_argument('--min_protein', default=0, type=int, help='Min length of novel proteins in output gff (determined as len(CDS)/3)')
 args = parser.parse_args()
 if args.genome_name:
   args.genome_name += "_"
@@ -112,6 +113,15 @@ if args.in_gff:
       seqid_intervals = chrom_intervals_dict[seqid]
       gene_iv = interval_contains(seqid_intervals, gene_start, gene_end)
       if gene_iv and gene_iv.end - gene_iv.begin > args.min_region:
+        # if min prot len was defined, filter short proteins
+        if args.min_protein > 0:
+          n_cds = 0
+          total_cds_len = 0
+          for cds in gff.children(gene, featuretype='CDS'):
+            n_cds += 1
+            total_cds_len += cds.end - cds.start
+          if n_cds > 0 and total_cds_len/3 < args.min_protein:
+            continue
         print(convert_feature_coords(gene, gene_iv.begin, gene_iv.end), file=fo)
         for f in gff.children(gene):
           print(convert_feature_coords(f, gene_iv.begin, gene_iv.end), file=fo)
