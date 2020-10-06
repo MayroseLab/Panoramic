@@ -43,7 +43,7 @@ protein2genome=0 #infer predictions from protein homology, 1 = yes, 0 = no
 trna=0 #find tRNAs with tRNAscan, 1 = yes, 0 = no
 snoscan_rrna= #rRNA file to have Snoscan find snoRNAs
 snoscan_meth= #-O-methylation site fileto have Snoscan find snoRNAs
-unmask=0 #also run ab-initio prediction programs on unmasked sequence, 1 = yes, 0 = no
+unmask=1 #also run ab-initio prediction programs on unmasked sequence, 1 = yes, 0 = no
 allow_overlap= #allowed gene overlap fraction (value from 0 to 1, blank for default)
 
 #-----Other Annotation Feature Types (features MAKER doesn't recognize)
