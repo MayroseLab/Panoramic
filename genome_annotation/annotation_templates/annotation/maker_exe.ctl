@@ -7,6 +7,8 @@ formatdb=formatdb #location of NCBI formatdb executable
 blastall=lastall #location of NCBI blastall executable
 xdformat= #location of WUBLAST xdformat executable
 blasta= #location of WUBLAST blasta executable
+prerapsearch= #location of prerapsearch executable
+rapsearch= #location of rapsearch executable
 RepeatMasker=RepeatMasker #location of RepeatMasker executable
 exonerate=exonerate #location of exonerate executable
 
@@ -16,6 +18,7 @@ gmhmme3= #location of eukaryotic genemark executable
 gmhmmp= #location of prokaryotic genemark executable
 augustus=augustus #location of augustus executable
 fgenesh= #location of fgenesh executable
+evm= #location of EvidenceModeler executable
 tRNAscan-SE=tRNAscan-SE #location of trnascan executable
 snoscan=snoscan #location of snoscan executable
 

@@ -37,11 +37,14 @@ augustus_species= #Augustus gene prediction species model
 fgenesh_par_file= #FGENESH parameter file
 pred_gff= 
 model_gff= #annotated gene models from an external GFF3 file (annotation pass-through)
+run_evm=0 #run EvidenceModeler, 1 = yes, 0 = no
 est2genome=0 #infer gene predictions directly from ESTs, 1 = yes, 0 = no
 protein2genome=0 #infer predictions from protein homology, 1 = yes, 0 = no
 trna=0 #find tRNAs with tRNAscan, 1 = yes, 0 = no
 snoscan_rrna= #rRNA file to have Snoscan find snoRNAs
-unmask=1 #also run ab-initio prediction programs on unmasked sequence, 1 = yes, 0 = no
+snoscan_meth= #-O-methylation site fileto have Snoscan find snoRNAs
+unmask=0 #also run ab-initio prediction programs on unmasked sequence, 1 = yes, 0 = no
+allow_overlap= #allowed gene overlap fraction (value from 0 to 1, blank for default)
 
 #-----Other Annotation Feature Types (features MAKER doesn't recognize)
 other_gff= #extra features to pass-through to final MAKER generated GFF3 file
@@ -64,6 +67,7 @@ map_forward=0 #map names and attributes forward from old GFF3 genes, 1 = yes, 0 
 keep_preds=0 #Concordance threshold to add unsupported gene prediction (bound by 0 and 1)
 
 split_hit=10000 #length for the splitting of hits (expected max intron size for evidence alignments)
+min_intron=20 #minimum intron length (used for alignment polishing)
 single_exon=1 #consider single exon EST evidence when generating annotations, 1 = yes, 0 = no
 single_length=250 #min length required for single exon ESTs if 'single_exon is enabled'
 correct_est_fusion=1 #limits use of ESTs in annotation to avoid fusion genes

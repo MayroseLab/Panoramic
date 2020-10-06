@@ -51,7 +51,8 @@ rule prep_maker_configs:
     output:
         bopts=config["out_dir"] + "/chunks/{chunk}/maker_bopts.ctl",
         opts=config["out_dir"] + "/chunks/{chunk}/maker_opts.ctl",
-        exe=config["out_dir"] + "/chunks/{chunk}/maker_exe.ctl"
+        exe=config["out_dir"] + "/chunks/{chunk}/maker_exe.ctl",
+        evm=config["out_dir"] + "/chunks/{chunk}/maker_evm.ctl"
     params:
         templates=config["config_templates"],
         config_edit_script=pipeline_dir + '/edit_maker_conf.py',
@@ -59,6 +60,7 @@ rule prep_maker_configs:
     run:
         shell("cp {params.templates}/maker_bopts.ctl {output.bopts}")
         shell("cp {params.templates}/maker_exe.ctl {output.exe}")
+        shell("cp {params.templates}/maker_evm.ctl {output.evm}")
         if hasattr(input,'pred_gff'):
             shell("python {params.config_edit_script} {params.templates}/maker_opts.ctl {output.opts} --edits genome={input.path} pred_gff={input.pred_gff} {params.config_kv_pairs}")
         else:

@@ -1,5 +1,6 @@
 #-----BLAST and Exonerate Statistics Thresholds
 blast_type=ncbi+ #set to 'ncbi+', 'ncbi' or 'wublast'
+use_rapsearch=0 #use rapsearch instead of blastx, 1 = yes, 0 = no
 
 pcov_blastn=0.8 #Blastn Percent Coverage Threhold EST-Genome Alignments
 pid_blastn=0.85 #Blastn Percent Identity Threshold EST-Genome Aligments
