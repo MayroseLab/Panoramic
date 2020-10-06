@@ -23,6 +23,7 @@ busco_set:
 # GAWN liftover
 liftover_transcripts:
 min_identity: 95
+max_ratio_diff: 0.1
 
 # annotation
 maker_load: ""

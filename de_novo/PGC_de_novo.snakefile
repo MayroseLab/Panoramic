@@ -448,7 +448,7 @@ rule blast_liftover_proteins:
         CONDA_ENV_DIR + '/GAWN.yml'
     shell:
         """
-        blastp -query {input.liftover} -db {input.ref} -out {output} -max_target_seqs 1 -outfmt 6 -num_threads {params.ppn}
+        blastp -query {input.liftover} -db {input.ref} -out {output} -max_target_seqs 1 -outfmt "6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore qlen slen" -num_threads {params.ppn}
         """
 
 rule improve_liftover_result:
@@ -468,6 +468,7 @@ rule improve_liftover_result:
     params:
         improve_script=os.path.join(pipeline_dir,"improve_GAWN_liftover.py"),
         min_identity=config['min_identity'],
+        max_ratio_diff=config['max_ratio_diff'],
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR,
@@ -475,7 +476,7 @@ rule improve_liftover_result:
         CONDA_ENV_DIR + '/gffutils.yml'
     shell:
         """
-        python {params.improve_script} {input.gff} {input.blastp_res} {input.transdecoder_gff} {params.min_identity} {output}
+        python {params.improve_script} {input.gff} {input.blastp_res} {input.transdecoder_gff} {params.min_identity} {params.max_ratio_diff} {output}
         """
 
 rule get_liftover_proteins:

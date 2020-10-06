@@ -5,12 +5,14 @@ Inputs:
    a. Extracting transcript sequences based on same GFF3
    b. Running TransDecoder on the transcripts
    c. Running blastp of TransDecoder .pep against ref proteins (max_target_seqs = 1)
+      The qlen and slen columns are also expected (-outfm6 "6 ... qlen slen")
 3) TransDecoder .gff3 output from the same run
 
 The script goes over the genes in the GAWN GFF3
 and discards genes with no high quality protein product. This includes:
 a. best blastp match is to the ref protein with the same name
-b. match has % identity > X
+b. match has % identity > min_identity
+c. 1 - max_ratio_diff < slen/qlen < 1 + max_ratio_diff
 When there is more than one high quality gene or mRNA
 for a given liftover transcript, the best one is taken (based on bitscore)
 In addition, the script replaces all CDS features created by GAWN
@@ -30,13 +32,14 @@ in_gff = sys.argv[1]
 blastp_res = sys.argv[2]
 transdec_gff = sys.argv[3]
 min_identity = int(sys.argv[4])
-out_gff = sys.argv[5]
+max_ratio_diff = float(sys.argv[5])
+out_gff = sys.argv[6]
 
 db_path = "tmp_%s.sqlite3" % time()
 gff_db = gffutils.create_db(in_gff, db_path, force=False, merge_strategy="create_unique", verbose=True)
 gff = gffutils.FeatureDB(db_path)
 
-def choose_mrna(mrna1, mrna2, min_identity, blast_dict):
+def choose_mrna(mrna1, mrna2, min_identity, max_ratio_diff, blast_dict):
   """
   """
   best_mrna = None
@@ -53,6 +56,11 @@ def choose_mrna(mrna1, mrna2, min_identity, blast_dict):
     perc_identity = blast_dict[mrna]["pident"]
     # if protein is too different from the ref protein
     if perc_identity < min_identity:
+      continue
+    qlen = blast_dict[mrna]["qlen"]
+    slen = blast_dict[mrna]["slen"]
+    # if query and subject lengths are too different
+    if not (1 - max_ratio_diff < slen/qlen < 1 + max_ratio_diff):
       continue
     if best_mrna and blast_dict[mrna]["bitscore"] < blast_dict[best_mrna]["bitscore"]:
       continue
@@ -78,7 +86,7 @@ with open(blastp_res) as f:
   for line in f:
     fields = line.strip().split('\t')
     name = fields[0]
-    blast_dict[name] = {"sseqid": fields[1], "pident": float(fields[2]), "bitscore": float(fields[11])}
+    blast_dict[name] = {"sseqid": fields[1], "pident": float(fields[2]), "bitscore": float(fields[11]), "qlen": int(fields[12]), "slen": int(fields[13])}
 
 # go over all genes in the liftover gff and find the best mRNA
 # There might be multiple mRNAs per input genes (.mrna1, .mrna2, ...)
@@ -91,14 +99,14 @@ for gene in gff.features_of_type('gene'):
   best_mrna_length = 0
   for mrna in gff.children(gene, featuretype='mRNA'):
     mrna_name = mrna['ID'][0]
-    best_mrna = choose_mrna(best_mrna, mrna_name, min_identity, blast_dict)
+    best_mrna = choose_mrna(best_mrna, mrna_name, min_identity, max_ratio_diff, blast_dict)
   if best_mrna:
     if gene_name not in genes:
       genes[gene_name] = [gene, best_mrna]
     else:
       # we get here if there is more than one gene from the same transcript
       # we choose the gene with the better mRNA
-      better_mrna = choose_mrna(genes[gene_name][1], best_mrna, min_identity, blast_dict)
+      better_mrna = choose_mrna(genes[gene_name][1], best_mrna, min_identity, max_ratio_diff, blast_dict)
       if better_mrna == best_mrna:
         genes[gene_name] = [gene, best_mrna]
 
