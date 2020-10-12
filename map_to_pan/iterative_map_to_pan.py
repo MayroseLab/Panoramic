@@ -73,21 +73,28 @@ if __name__ == "__main__":
       os.system("minimap2 -x asm5 -L -t %s %s %s -o %s -c" % (args.cpus, pan_fasta, assembly_fasta, out_paf))
 
       # extract novel sequences
+      # first run
       novel_seq_fasta = os.path.join(args.out_dir, "%s_novel.fasta" % genome_name)
+      os.system("python %s %s %s %s %s --genome_name %s" %(extract_script, out_paf, assembly_fasta, args.min_len, novel_seq_fasta, genome_name))
+      # validate by remapping extracted sequences
+      out_paf_remap = os.path.join(args.out_dir, "%s_vs_pan_remap.paf" % genome_name)
+      os.system("minimap2 -x asm5 -L -t %s %s %s -o %s -c" % (args.cpus, pan_fasta, novel_seq_fasta, out_paf_remap))
+      novel_seq_fasta_remap = os.path.join(args.out_dir, "%s_novel_remap.fasta" % genome_name)
+      # extract from remap (use gff if provided)
       if genome_gff:
         novel_gff = os.path.join(args.out_dir, "%s_novel.gff" % genome_name)
-        os.system("python %s %s %s %s %s --in_gff %s --out_gff %s --genome_name %s --min_protein %s" %(extract_script, out_paf, assembly_fasta, args.min_len, novel_seq_fasta, genome_gff, novel_gff, genome_name, args.min_protein))
+        os.system("python %s %s %s %s %s --in_gff %s --out_gff %s --genome_name %s --min_protein %s" %(extract_script, out_paf_remap, novel_seq_fasta, args.min_len, novel_seq_fasta_remap, genome_gff, novel_gff, genome_name, args.min_protein))
       else:
-        os.system("python %s %s %s %s %s --genome_name %s" %(extract_script, out_paf, assembly_fasta, args.min_len, novel_seq_fasta, genome_name))
+        os.system("python %s %s %s %s %s --genome_name %s" %(extract_script, out_paf_remap, novel_seq_fasta, args.min_len, novel_seq_fasta_remap, genome_name))
 
       # get novel proteins (if available)
       if proteins_fasta:
         novel_proteins = os.path.join(args.out_dir, "%s_novel_proteins.fasta" % genome_name)
-        os.system("python %s %s %s %s mRNA ID" %(filter_fasta_script, novel_gff, proteins_fasta,  novel_proteins))
+        os.system("python %s %s %s %s mRNA ID" %(filter_fasta_script, novel_gff, proteins_fasta, novel_proteins))
 
       # create new pan genome
       curr_pan = os.path.join(args.out_dir, "current_pan.fasta")
-      os.system("cat %s %s > %s" %(pan_fasta, novel_seq_fasta, curr_pan + '.tmp'))
+      os.system("cat %s %s > %s" %(pan_fasta, novel_seq_fasta_remap, curr_pan + '.tmp'))
       os.replace(curr_pan + '.tmp', curr_pan)
 
       # if gff exists, add to pan genome annotation
@@ -117,4 +124,4 @@ if __name__ == "__main__":
   os.link(pan_proteins, final_prot)
   # create final novel fasta
   all_novel_fasta = os.path.join(args.out_dir, "all_novel.fasta")
-  os.system("cat %s/*_novel.fasta > %s" %(args.out_dir, all_novel_fasta))
+  os.system("cat %s/*_novel_remap.fasta > %s" %(args.out_dir, all_novel_fasta))
