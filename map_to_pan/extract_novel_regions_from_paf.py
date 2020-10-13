@@ -62,19 +62,34 @@ with PafFile(args.in_paf) as paf:
         chrom_intervals_dict[record.qname].chop(start,end)
       start += int(ct[0])
 
-  # now extract all unmapped regions (larger than cutoff)
+  # go over all unmapped regions, strip N's from the ends and update if needed
+  # only keep intervals larger than cutoff
+  filter_chrom_intervals_dict = {}
+  # and keep fasta records
   out_fasta_records = []
   for chrom in chrom_intervals_dict:
     if chrom not in genome_dict:
       continue
+    filter_chrom_intervals_dict[chrom] = IntervalTree()
     for iv in chrom_intervals_dict[chrom]:
       iv_len = iv.end - iv.begin
-      if iv_len > args.min_region:
-        unmapped_seq = genome_dict[chrom].seq[iv.begin:iv.end]
-        # if unmapped sequence is entirely made of gaps - skip
-        if str(unmapped_seq).replace('N','') == '':
-          continue
-        unmapped_name = "%s%s_%s-%s" %(args.genome_name, chrom, iv.begin, iv.begin+len(unmapped_seq))
+      if iv_len < args.min_region:
+        continue
+      # get unmapped sequence
+      unmapped_seq = genome_dict[chrom].seq[iv.begin:iv.end]
+      # if unmapped sequence is entirely made of gaps - skip
+      if str(unmapped_seq).replace('N','') == '':
+        continue
+      # strip N's from the ends of sequence and update coordinates
+      unmapped_seq = unmapped_seq.lstrip('N')
+      strip_begin = iv.begin + (iv_len - len(unmapped_seq))
+      iv_len = iv.end - strip_begin
+      unmapped_seq = unmapped_seq.rstrip('N')
+      strip_end = iv.end - (iv_len - len(unmapped_seq))
+      strip_iv_len = strip_end - strip_begin
+      if strip_iv_len >= args.min_region:
+        filter_chrom_intervals_dict[chrom][strip_begin:strip_end] = 1
+        unmapped_name = "%s%s_%s-%s" %(args.genome_name, chrom, strip_begin, strip_end)
         unmapped_rec = SeqRecord(unmapped_seq, id=unmapped_name, description='')
         out_fasta_records.append(unmapped_rec)
 
@@ -110,9 +125,9 @@ if args.in_gff:
       seqid = gene.seqid
       gene_start = gene.start
       gene_end = gene.end
-      seqid_intervals = chrom_intervals_dict[seqid]
+      seqid_intervals = filter_chrom_intervals_dict[seqid]
       gene_iv = interval_contains(seqid_intervals, gene_start, gene_end)
-      if gene_iv and gene_iv.end - gene_iv.begin > args.min_region:
+      if gene_iv:
         # if min prot len was defined, filter short proteins
         if args.min_protein > 0:
           n_cds = 0
