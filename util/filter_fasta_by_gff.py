@@ -29,10 +29,14 @@ name_attribute = args.name_attribute
 
 # create list of desired names
 db_path = "tmp_%s.sqlite3" % time()
-gff_db = gffutils.create_db(in_gff, db_path, force=True, merge_strategy="create_unique")
-gff = gffutils.FeatureDB(db_path)
+try:
+  gff_db = gffutils.create_db(in_gff, db_path, force=True, merge_strategy="create_unique")
+  gff = gffutils.FeatureDB(db_path)
+  names = {feat.attributes[name_attribute][0] for feat in gff.features_of_type(feature_type)}
+except ValueError:
+  print("WARNING: gff file %s seems to be empty. Therefore, no fasta records were written." % args.in_gff)
+  names = []
 
-names = {feat.attributes[name_attribute][0] for feat in gff.features_of_type(feature_type)}
 remove(db_path)
 
 # go over fasta and select records by name
