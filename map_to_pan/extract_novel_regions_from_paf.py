@@ -30,21 +30,47 @@ parser.add_argument('out_fasta', help='Output fasta file')
 parser.add_argument('--out_gff', default=None, help='Output gff file')
 parser.add_argument('--genome_name', default='', help='Name to include in contig names')
 parser.add_argument('--min_protein', default=0, type=int, help='Min length of novel proteins in output gff (determined as len(CDS)/3)')
+parser.add_argument('--remap_genome', default=None, help='Indicates that this is a remap run of provided fasta')
 args = parser.parse_args()
 if args.genome_name:
-  args.genome_name += "_"
+  args.genome_name += "__"
+
+def parse_region_name(name):
+  # assumes sequence names like "genome1__chr1_1000-2000"
+  genome, rest = name.split('__')
+  start, end = [int(n) for n in rest.split('_')[-1].split('-')]
+  chrom = '_'.join(rest.split('_')[:-1])
+  return genome, chrom, start, end
 
 # Read input fasta
-genome_dict = SeqIO.to_dict(SeqIO.parse(args.in_fasta, "fasta"))
+if not args.remap_genome:
+  genome_dict = SeqIO.to_dict(SeqIO.parse(args.in_fasta, "fasta"))
+else:
+  genome_dict = SeqIO.to_dict(SeqIO.parse(args.remap_genome, "fasta"))
 # create per-chromosome intervals
 # this is used for finding unmapped regions of the query genome
 # initialize by creating full-length chromosome intervals
 # and chop whenerver mapped regions are detected while parsing PAF
-chrom_intervals_dict = { chrom: IntervalTree([Interval(0,len(genome_dict[chrom].seq)-1)]) for chrom in genome_dict }
+if not args.remap_genome:
+  chrom_intervals_dict = { chrom: IntervalTree([Interval(0,len(genome_dict[chrom].seq)-1)]) for chrom in genome_dict }
+else:
+  chrom_intervals_dict = {}
+  for rec in SeqIO.parse(args.in_fasta, 'fasta'):
+    genome, chrom, start, end = parse_region_name(rec.id)
+    if chrom not in chrom_intervals_dict:
+      chrom_intervals_dict[chrom] = IntervalTree()
+    chrom_intervals_dict[chrom][start:end] = 1
 
 # Read PAF and find novel regions
 with PafFile(args.in_paf) as paf:
   for record in paf:
+    if args.remap_genome:
+      genome, orig_chrom, orig_start, orig_end = parse_region_name(record.qname)
+    else:
+      orig_chrom = record.qname
+      orig_start = 0
+      orig_end = len(genome_dict[orig_chrom].seq)-1
+      
     # if entire scaffold is unmapped
     if record.tname == "*":
       continue
@@ -53,13 +79,13 @@ with PafFile(args.in_paf) as paf:
     # fetch CIGAR and use it to extract matched regions
     cigar = str(record.tags["cg"])[5:]
     cigar_tuples = re.findall(r'(\d+)([A-Z]{1})', cigar)
-    start = record.qstart
+    start = record.qstart + orig_start
     for ct in cigar_tuples:
       if ct[1] in {"D","N"}:
         continue
       if ct[1] == "M":
         end = start + int(ct[0])
-        chrom_intervals_dict[record.qname].chop(start,end)
+        chrom_intervals_dict[orig_chrom].chop(start,end)
       start += int(ct[0])
 
   # go over all unmapped regions, strip N's from the ends and update if needed
@@ -68,8 +94,6 @@ with PafFile(args.in_paf) as paf:
   # and keep fasta records
   out_fasta_records = []
   for chrom in chrom_intervals_dict:
-    if chrom not in genome_dict:
-      continue
     filter_chrom_intervals_dict[chrom] = IntervalTree()
     for iv in chrom_intervals_dict[chrom]:
       iv_len = iv.end - iv.begin
@@ -88,8 +112,8 @@ with PafFile(args.in_paf) as paf:
       strip_end = iv.end - (iv_len - len(unmapped_seq))
       strip_iv_len = strip_end - strip_begin
       if strip_iv_len >= args.min_region:
-        filter_chrom_intervals_dict[chrom][strip_begin:strip_end] = 1
         unmapped_name = "%s%s_%s-%s" %(args.genome_name, chrom, strip_begin, strip_end)
+        filter_chrom_intervals_dict[chrom][strip_begin:strip_end] = unmapped_name
         unmapped_rec = SeqRecord(unmapped_seq, id=unmapped_name, description='')
         out_fasta_records.append(unmapped_rec)
 
@@ -107,10 +131,10 @@ def interval_contains(interval_tree, start, end):
     return iv
   return None
 
-def convert_feature_coords(feature, start, end):
-  feature.seqid = "%s%s_%s-%s" %(args.genome_name, feature.seqid,start,end)
-  feature.start -= start
-  feature.end -= start
+def convert_feature_coords(feature, iv):
+  feature.seqid = iv.data
+  feature.start -= iv.begin
+  feature.end -= iv.begin
   return feature
 
 if args.in_gff:
@@ -125,6 +149,8 @@ if args.in_gff:
       seqid = gene.seqid
       gene_start = gene.start
       gene_end = gene.end
+      if seqid not in filter_chrom_intervals_dict:
+        continue
       seqid_intervals = filter_chrom_intervals_dict[seqid]
       gene_iv = interval_contains(seqid_intervals, gene_start, gene_end)
       if gene_iv:
@@ -137,8 +163,8 @@ if args.in_gff:
             total_cds_len += cds.end - cds.start
           if n_cds > 0 and total_cds_len/3 < args.min_protein:
             continue
-        print(convert_feature_coords(gene, gene_iv.begin, gene_iv.end), file=fo)
+        print(convert_feature_coords(gene, gene_iv), file=fo)
         for f in gff.children(gene):
-          print(convert_feature_coords(f, gene_iv.begin, gene_iv.end), file=fo)
+          print(convert_feature_coords(f, gene_iv), file=fo)
 
   remove(db_path)

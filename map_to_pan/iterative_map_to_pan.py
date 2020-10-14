@@ -83,9 +83,9 @@ if __name__ == "__main__":
       # extract from remap (use gff if provided)
       if genome_gff:
         novel_gff = os.path.join(args.out_dir, "%s_novel.gff" % genome_name)
-        os.system("python %s %s %s %s %s --in_gff %s --out_gff %s --genome_name %s --min_protein %s" %(extract_script, out_paf_remap, novel_seq_fasta, args.min_len, novel_seq_fasta_remap, genome_gff, novel_gff, genome_name, args.min_protein))
+        os.system("python %s %s %s %s %s --in_gff %s --out_gff %s --genome_name %s --min_protein %s --remap_genome %s" %(extract_script, out_paf_remap, novel_seq_fasta, args.min_len, novel_seq_fasta_remap, genome_gff, novel_gff, genome_name, args.min_protein, assembly_fasta))
       else:
-        os.system("python %s %s %s %s %s --genome_name %s" %(extract_script, out_paf_remap, novel_seq_fasta, args.min_len, novel_seq_fasta_remap, genome_name))
+        os.system("python %s %s %s %s %s --genome_name %s --remap_genome %s" %(extract_script, out_paf_remap, novel_seq_fasta, args.min_len, novel_seq_fasta_remap, genome_name, assembly_fasta))
 
       # get novel proteins (if available)
       if proteins_fasta:
