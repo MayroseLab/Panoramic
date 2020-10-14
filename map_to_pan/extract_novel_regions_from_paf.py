@@ -31,6 +31,7 @@ parser.add_argument('--out_gff', default=None, help='Output gff file')
 parser.add_argument('--genome_name', default='', help='Name to include in contig names')
 parser.add_argument('--min_protein', default=0, type=int, help='Min length of novel proteins in output gff (determined as len(CDS)/3)')
 parser.add_argument('--remap_genome', default=None, help='Indicates that this is a remap run of provided fasta')
+parser.add_argument('--max_merge_dist', default=0, type=int, help='Max distance for merging novel sequences')
 args = parser.parse_args()
 if args.genome_name:
   args.genome_name += "__"
@@ -41,6 +42,41 @@ def parse_region_name(name):
   start, end = [int(n) for n in rest.split('_')[-1].split('-')]
   chrom = '_'.join(rest.split('_')[:-1])
   return genome, chrom, start, end
+
+def merge_name(name1, name2):
+  genome1, chrom1, start1, end1 = parse_region_name(name1)
+  genome2, chrom2, start2, end2 = parse_region_name(name2)
+  assert genome1 == genome2 and chrom1 == chrom2
+  return "%s__%s_%s-%s" %(genome1, chrom1, start1, end2)
+
+def merge_intervals_by_dist(interval_tree, max_dist=0, rename_func=(lambda x,y: '')):
+  """
+  Merges intervals within an IntervalTree if they
+  overlap or are within a max_dist from one another.
+  Returns a new IntervalTree with merged intervals.
+  Names of merged intervals are generated using rename_func(name1, name2)
+  """
+  res_tree = IntervalTree()
+  # if interval tree is empty
+  if interval_tree == IntervalTree():
+    return res_tree
+  intervals = iter(sorted(interval_tree.items()))
+  iv = next(intervals)
+  while iv:
+    try:
+      next_iv = next(intervals)
+    except StopIteration:
+      next_iv = None
+    while next_iv and (next_iv.begin - iv.end <= max_dist):
+      name = rename_func(iv.data, next_iv.data)
+      iv = Interval(iv.begin, next_iv.end, name)
+      try:
+        next_iv = next(intervals)
+      except StopIteration:
+        next_iv = None
+    res_tree.add(iv)
+    iv = next_iv
+  return res_tree
 
 # Read input fasta
 if not args.remap_genome:
@@ -114,8 +150,14 @@ with PafFile(args.in_paf) as paf:
       if strip_iv_len >= args.min_region:
         unmapped_name = "%s%s_%s-%s" %(args.genome_name, chrom, strip_begin, strip_end)
         filter_chrom_intervals_dict[chrom][strip_begin:strip_end] = unmapped_name
-        unmapped_rec = SeqRecord(unmapped_seq, id=unmapped_name, description='')
-        out_fasta_records.append(unmapped_rec)
+
+  # Merge overlapping or close intervals and create final sequences
+  for chrom in filter_chrom_intervals_dict:
+    filter_chrom_intervals_dict[chrom] = merge_intervals_by_dist(filter_chrom_intervals_dict[chrom], max_dist=args.max_merge_dist, rename_func=merge_name)
+    for iv in filter_chrom_intervals_dict[chrom]:
+      unmapped_seq = genome_dict[chrom].seq[iv.begin:iv.end]
+      unmapped_rec = SeqRecord(unmapped_seq, id=iv.data, description='')
+      out_fasta_records.append(unmapped_rec)
 
 # Write records to output fasta
 SeqIO.write(out_fasta_records, args.out_fasta, "fasta")
