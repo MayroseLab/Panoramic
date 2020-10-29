@@ -90,6 +90,9 @@ def get_hq_sample_proteins(wildcards):
 
 ena_fast_download_url = "https://raw.githubusercontent.com/wwood/ena-fast-download/master/ena-fast-download.py"
 
+wildcard_constraints:
+    sample="[^_]+"
+
 rule fetch_ena_fast_download_script:
     """
     Download latest version on ena-fast-download.py
@@ -1194,5 +1197,5 @@ rule create_report_html:
         CONDA_ENV_DIR + '/jupyter.yml'
     shell:
         """
-        jupyter nbconvert {input} --output {output} --no-prompt --no-input --execute --NotebookClient.timeout=-1 --ExecutePreprocessor.timeout=-1
+        jupyter nbconvert {input} --output {output} --to html --no-prompt --no-input --execute --NotebookClient.timeout=-1 --ExecutePreprocessor.timeout=-1
         """
