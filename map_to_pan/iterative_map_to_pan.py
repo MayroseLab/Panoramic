@@ -17,6 +17,7 @@ import os
 import csv
 import argparse
 from Bio import SeqIO
+from shutil import copy
 
 if __name__ == "__main__":
 
@@ -50,10 +51,16 @@ if __name__ == "__main__":
   ref_simp_fasta = os.path.join(args.out_dir, "ref_genome.fasta")
   SeqIO.write(simp_records, ref_simp_fasta, "fasta")
 
+  # make copies of ref proteins and gff
+  ref_gff = os.path.join(args.out_dir, "ref_genes.gff")
+  copy(args.ref_gff, ref_gff)
+  ref_proteins = os.path.join(args.out_dir, "ref_proteins.fasta")
+  copy(args.ref_proteins, ref_proteins)
+  
   # initialize
   pan_fasta = ref_simp_fasta
-  pan_gff = args.ref_gff
-  pan_proteins = args.ref_proteins
+  pan_gff = ref_gff
+  pan_proteins = ref_proteins
 
   # read TSV
   with open(args.in_tsv) as f:
