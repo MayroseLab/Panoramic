@@ -128,6 +128,7 @@ def create_orthology_db(orthofinder_dir, weight_field='bitscore', overwrite=Fals
   # so reading file line by line
   with open(seq_ids_file) as f:
     df = pd.DataFrame([[line.strip().split(': ', 2)[0] , line.strip().split(': ', 2)[1]] for line in f], columns=colnames)
+    df['seqname'] = df['seqname'].str.replace('[^0-9a-zA-Z\-\.]+','_')
   df.to_sql('seqnames', con, if_exists='append', index=False)
   cur.execute("CREATE TABLE blast_seqnames as SELECT b.*, s.* FROM (SELECT b.*, s.* FROM blast b INNER JOIN (SELECT seqid AS qseqid, seqname AS qseqname FROM seqnames) s ON b.qseqid = s.qseqid) b INNER JOIN (SELECT seqid AS sseqid, seqname AS sseqname FROM seqnames) s ON b.sseqid = s.sseqid")
 
@@ -135,6 +136,7 @@ def create_orthology_db(orthofinder_dir, weight_field='bitscore', overwrite=Fals
   genome_ids_file = os.path.join(blast_dir, 'SpeciesIDs.txt')
   colnames = ['genomeid','genomename']
   df = pd.read_csv(genome_ids_file, sep=': ', header=None, names=colnames)
+  df['genomename'] = df['genomename'].str.replace('[^0-9a-zA-Z\-\.]+','_')
   df.to_sql('genomenames', con, if_exists='append', index=False)
   cur.execute("CREATE TABLE blast_seqnames_genomenames as SELECT b.*, s.* FROM (SELECT b.*, s.* FROM blast_seqnames b INNER JOIN (SELECT genomeid AS qgenomeid, genomename AS qgenomename FROM genomenames) s ON b.qgenomeid = s.qgenomeid) b INNER JOIN (SELECT genomeid AS sgenomeid, genomename AS sgenomename FROM genomenames) s ON b.sgenomeid = s.sgenomeid")
 
@@ -149,8 +151,8 @@ def create_orthology_db(orthofinder_dir, weight_field='bitscore', overwrite=Fals
     df_t.columns = ['orthogroup','prot1', 'prot2', 'prot1_genome', 'prot2_genome']
     df_t = tidy_split(df_t, 'prot1', sep=', ')
     df_t = tidy_split(df_t, 'prot2', sep=', ')
-    df_t['prot1'] = df_t['prot1'].str.replace('QI_','QI:').str.replace('AED_','AED:')
-    df_t['prot2'] = df_t['prot2'].str.replace('QI_','QI:').str.replace('AED_','AED:')
+    df_t['prot1'] = df_t['prot1'].str.replace('[^0-9a-zA-Z\-\.]+','_')
+    df_t['prot2'] = df_t['prot2'].str.replace('[^0-9a-zA-Z\-\.]+','_')
     df_t.to_sql('orthologs', con, if_exists='append', index=False)
 
   # Take blast data for orthologs only
