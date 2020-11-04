@@ -1112,7 +1112,7 @@ rule orthofinder:
         then
             rm -rf {params.orthofinder_dir}/OrthoFinder/Results_orthofinder/
         fi
-        orthofinder -t {params.ppn} -a {params.ppn} -S diamond -n orthofinder -f {params.orthofinder_dir}
+        orthofinder -t {params.ppn} -a {params.ppn} -S mmseqs -n orthofinder -f {params.orthofinder_dir}
         """
 
 rule break_orthogroups_MWOP:
@@ -1285,7 +1285,7 @@ rule create_report_notebook:
     output:
         config["out_dir"] + "/all_samples/stats/report.ipynb"
     params:
-        ref_name=config['reference_name'] + '_REF',
+        ref_name=config['reference_name'],
         conf=config_path,
         nb_template=pan_genome_report_dir + '/report_template.ipynb',
         queue=config['queue'],

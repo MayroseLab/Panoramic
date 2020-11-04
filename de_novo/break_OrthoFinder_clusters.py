@@ -112,10 +112,10 @@ def create_orthology_db(orthofinder_dir, weight_field='bitscore', overwrite=Fals
   # Load Blast data
   #cur.execute("CREATE TABLE blast (qseqid text, sseqid text, pident real, length	integer, mismatch integer, gapopen	integer, qstart integer, qend integer, sstart integer, send integer, evalue real, bitscore real)")
   blast_dir = os.path.join(orthofinder_dir, 'WorkingDirectory')
-  blast_files = [os.path.join(blast_dir, f) for f in os.listdir(blast_dir) if f.startswith('Blast')]
+  blast_files = [os.path.join(blast_dir, f) for f in os.listdir(blast_dir) if f.startswith('Blast') and f.endswith('txt')]
   colnames = ['qseqid','sseqid','pident','length','mismatch','gapopen','qstart','qend','sstart','send','evalue','bitscore']
   for bf in blast_files:
-    df = pd.read_csv(bf, sep='\t', compression='gzip', header=None, names=colnames)
+    df = pd.read_csv(bf, sep='\t', header=None, names=colnames)
     df['qgenomeid'] = df['qseqid'].str.split('_', expand=True)[0]
     df['sgenomeid'] = df['sseqid'].str.split('_', expand=True)[0]
     df.to_sql('blast', con, if_exists='append', index=False)
