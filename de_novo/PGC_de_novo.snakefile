@@ -1153,7 +1153,7 @@ rule create_PAV_matrix:
         mapping=config["out_dir"] + "/all_samples/pan_genome/OG_to_gene_names.tsv"
     params:
         create_pav_mat_script=os.path.join(pipeline_dir,"create_PAV_matrix.py"),
-        ref_name=config['reference_name'] + "_REF",
+        ref_name=config['reference_name'],
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR
