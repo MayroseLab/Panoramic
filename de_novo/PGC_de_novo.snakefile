@@ -1209,69 +1209,76 @@ rule calculate_stepwise_stats:
         python {params.stepwise_script} {input} 100 {output}
         """
 
-rule get_read_length:
-    """
-    Find raw data read length for stats report
-    """
-    input:
-        config["out_dir"] + "/per_sample/{sample}/data/{ena_ref}_1.fastq.gz"
-    output:
-        config["out_dir"] + "/per_sample/{sample}/data/{ena_ref}.read_length"
-    params:
-        queue=config['queue'],
-        priority=config['priority'],
-        logs_dir=LOGS_DIR
-    shell:
+# if there are any LQ samples, calculate assembly stats
+if config['samples_info']:
+    rule get_read_length:
         """
-        set +o pipefail;
-        zcat {input} | head -2 | tail -1 | wc | awk '{{print $3}}' > {output}
+        Find raw data read length for stats report
         """
+        input:
+            config["out_dir"] + "/per_sample/{sample}/data/{ena_ref}_1.fastq.gz"
+        output:
+            config["out_dir"] + "/per_sample/{sample}/data/{ena_ref}.read_length"
+        params:
+            queue=config['queue'],
+            priority=config['priority'],
+            logs_dir=LOGS_DIR
+        shell:
+            """
+            set +o pipefail;
+            zcat {input} | head -2 | tail -1 | wc | awk '{{print $3}}' > {output}
+            """
+    
+    rule prep_for_collect_stats:
+        """
+        Prepare the TSV required for
+        collecting assembly stats
+        """
+        input:
+            quast=expand(config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/QUAST/report.tsv", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()]),
+            busco=expand(config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/BUSCO/short_summary.BUSCO.txt", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()]),
+            ragtag=expand(config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/ragtag.scaffolds.fasta", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()]),
+            read_length=expand(config["out_dir"] + "/per_sample/{sample}/data/{ena_ref}.read_length", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()])
+        output:
+            config["out_dir"] + "/all_samples/stats/assembly_stats_files.tsv"
+        params:
+            samples=' '.join(config['samples_info'].keys()),
+            n_samples=len(config['samples_info']),
+            queue=config['queue'],
+            priority=config['priority'],
+            logs_dir=LOGS_DIR,
+        shell:
+            """
+            set -e
+            paste <(echo {params.samples} | tr ' ' "\\n") <(echo {input.quast} | tr ' ' "\\n") <(echo {input.busco} | tr ' ' "\\n") <(echo {input.ragtag} | tr ' ' "\\n") <(echo {input.read_length} | tr ' ' "\\n") > {output}
+            exit 0
+            """
+    
+    rule collect_assembly_stats:
+        """
+        Collect QUAST, BUSCO and RagTag
+        stats for LQ samples
+        """
+        input:
+            config["out_dir"] + "/all_samples/stats/assembly_stats_files.tsv"
+        output:
+            config["out_dir"] + "/all_samples/stats/assembly_stats.tsv"
+        params:
+            collect_script=pan_genome_report_dir + '/collect_stats.py',
+            queue=config['queue'],
+            priority=config['priority'],
+            logs_dir=LOGS_DIR,
+        conda:
+            CONDA_ENV_DIR + '/jupyter.yml'
+        shell:
+            """
+            python {params.collect_script} {input} {output}
+            """
 
-rule prep_for_collect_stats:
-    """
-    Prepare the TSV required for
-    collecting assembly stats
-    """
-    input:
-        quast=expand(config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/QUAST/report.tsv", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()]),
-        busco=expand(config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/BUSCO/short_summary.BUSCO.txt", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()]),
-        ragtag=expand(config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/ragtag.scaffolds.fasta", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()]),
-        read_length=expand(config["out_dir"] + "/per_sample/{sample}/data/{ena_ref}.read_length", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()])
-    output:
-        config["out_dir"] + "/all_samples/stats/assembly_stats_files.tsv"
-    params:
-        samples=' '.join(config['samples_info'].keys()),
-        n_samples=len(config['samples_info']),
-        queue=config['queue'],
-        priority=config['priority'],
-        logs_dir=LOGS_DIR,
-    shell:
-        """
-        set -e
-        paste <(echo {params.samples} | tr ' ' "\\n") <(echo {input.quast} | tr ' ' "\\n") <(echo {input.busco} | tr ' ' "\\n") <(echo {input.ragtag} | tr ' ' "\\n") <(echo {input.read_length} | tr ' ' "\\n") > {output}
-        exit 0
-        """
-
-rule collect_assembly_stats:
-    """
-    Collect QUAST, BUSCO and RagTag
-    stats for LQ samples
-    """
-    input:
-        config["out_dir"] + "/all_samples/stats/assembly_stats_files.tsv"
-    output:
-        config["out_dir"] + "/all_samples/stats/assembly_stats.tsv"
-    params:
-        collect_script=pan_genome_report_dir + '/collect_stats.py',
-        queue=config['queue'],
-        priority=config['priority'],
-        logs_dir=LOGS_DIR,
-    conda:
-        CONDA_ENV_DIR + '/jupyter.yml'
-    shell:
-        """
-        python {params.collect_script} {input} {output}
-        """
+# if pan-genome has only HQ samples
+else:
+    assembly_stats_tsv=config["out_dir"] + "/all_samples/stats/assembly_stats.tsv"
+    os.system("echo -e \"\\tAssembly\\t# contigs (>= 0 bp)\\t# contigs (>= 1000 bp)\\t# contigs (>= 5000 bp)\\t# contigs (>= 10000 bp) # contigs (>= 25000 bp)\\t# contigs (>= 50000 bp) Total length (>= 0 bp)\\tTotal length (>= 1000 bp)\\tTotal length (>= 5000 bp)\\tTotal length (>= 10000 bp)\\tTotal length (>= 25000 bp)\\tTotal length (>= 50000 bp)\\t# contigs\\tLargest contig\\tTotal length\\tGC (%%)\\tN50\\tN75\\tL50\\tL75\\t# total reads\\t# left\\t# right Mapped (%%)\\tProperly paired (%%)\\tAvg. coverage depth\\tCoverage >= 1x (%%)\\t# N's per 100 kbp\\t%% Complete BUSCOs\\t%% unmapped (Chr0)\\tQUAST report\\tRead length (bp)\" > %s" % assembly_stats_tsv)
 
 rule create_report_notebook:
     """
