@@ -1275,10 +1275,21 @@ if config['samples_info']:
             python {params.collect_script} {input} {output}
             """
 
-# if pan-genome has only HQ samples
+# if pan-genome has only HQ samples - create empty assembly stats tsv
 else:
-    assembly_stats_tsv=config["out_dir"] + "/all_samples/stats/assembly_stats.tsv"
-    os.system("echo -e \"\\tAssembly\\t# contigs (>= 0 bp)\\t# contigs (>= 1000 bp)\\t# contigs (>= 5000 bp)\\t# contigs (>= 10000 bp) # contigs (>= 25000 bp)\\t# contigs (>= 50000 bp) Total length (>= 0 bp)\\tTotal length (>= 1000 bp)\\tTotal length (>= 5000 bp)\\tTotal length (>= 10000 bp)\\tTotal length (>= 25000 bp)\\tTotal length (>= 50000 bp)\\t# contigs\\tLargest contig\\tTotal length\\tGC (%%)\\tN50\\tN75\\tL50\\tL75\\t# total reads\\t# left\\t# right Mapped (%%)\\tProperly paired (%%)\\tAvg. coverage depth\\tCoverage >= 1x (%%)\\t# N's per 100 kbp\\t%% Complete BUSCOs\\t%% unmapped (Chr0)\\tQUAST report\\tRead length (bp)\" > %s" % assembly_stats_tsv)
+    rule collect_assembly_stats:
+        """
+        """
+        output:
+            config["out_dir"] + "/all_samples/stats/assembly_stats.tsv"
+        params:
+            queue=config['queue'],
+            priority=config['priority'],
+            logs_dir=LOGS_DIR,
+        shell:
+            """
+            touch {output}
+            """
 
 rule create_report_notebook:
     """
