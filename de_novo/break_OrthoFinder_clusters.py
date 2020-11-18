@@ -439,12 +439,17 @@ if __name__ == "__main__":
   parser.add_argument('--allow_gene_copies', default="No", choices=['No','all','exclude_ref'], help='all - cluster monophyletic genes for any genome; exclude_ref - cluster for any genome except ref genome; No - do not cluster')
   parser.add_argument('--ref_genome_name', default=None, help='Name of reference genome')
   parser.add_argument('orthogroups_out', help='Path to output TSV')
+  parser.add_argument('--use_existing_db', default=False, action='store_true', help='Use previously constructed DB instead of constructing it')
   args = parser.parse_args()
   if args.allow_gene_copies == "exclude_ref":
     assert args.ref_genome_name, "Must specify --ref_genome_name when using --allow_gene_copies exclude_ref"
 
   # create orthologs DB
-  db_path = create_orthology_db(args.orthofinder_dir, weight_field=args.weight_field)
+  if args.use_existing_db:
+    db_path = os.path.join(args.orthofinder_dir,"orthologs.sqlite3")
+    print('Using existing DB %s' % db_path)
+  else:
+    db_path = create_orthology_db(args.orthofinder_dir, weight_field=args.weight_field)
   con = sql.connect(db_path)
 
   # species tree
