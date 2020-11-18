@@ -474,7 +474,7 @@ if __name__ == "__main__":
         hc = HomologyCluster(genomes, line, gene_tree=og_tree, ref_genome_name=args.ref_genome_name)
       else:
         hc = HomologyCluster(genomes, line)
-      if hc.has_paralogs and len(hc.nodes) > 3:
+      if hc.has_paralogs:
         hc.add_edges(con)
         orthogroups = hc.break_mwop(tree, allow_gene_copies=args.allow_gene_copies)
       else:
