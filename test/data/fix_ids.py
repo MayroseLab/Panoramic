@@ -18,4 +18,3 @@ with open(in_prot) as f:
       print(">%s" % replace[name])
     else:
       print(line)
-
