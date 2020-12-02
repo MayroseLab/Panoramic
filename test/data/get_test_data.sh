@@ -12,10 +12,10 @@ sed -i 's/ .*/_mRNA/' orf_coding_all_R64-2-1_20150113.fasta
 sed -i 's/ .*/_mRNA/' orf_trans_all_R64-2-1_20150113.fasta
 
 # RM-11a
-wget https://ftp.ncbi.nlm.nih.gov/genomes/genbank/fungi/Saccharomyces_cerevisiae/latest_assembly_versions/GCA_000149365.1_ASM14936v1/GCA_000149365.1_ASM14936v1_genomic.fna.gz
-wget https://ftp.ncbi.nlm.nih.gov/genomes/genbank/fungi/Saccharomyces_cerevisiae/latest_assembly_versions/GCA_000149365.1_ASM14936v1/GCA_000149365.1_ASM14936v1_genomic.gff.gz
-wget https://ftp.ncbi.nlm.nih.gov/genomes/genbank/fungi/Saccharomyces_cerevisiae/latest_assembly_versions/GCA_000149365.1_ASM14936v1/GCA_000149365.1_ASM14936v1_protein.faa.gz
-wget https://ftp.ncbi.nlm.nih.gov/genomes/genbank/fungi/Saccharomyces_cerevisiae/latest_assembly_versions/GCA_000149365.1_ASM14936v1/GCA_000149365.1_ASM14936v1_rna_from_genomic.fna.gz
+wget ftp://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/000/149/365/GCA_000149365.1_ASM14936v1/GCA_000149365.1_ASM14936v1_genomic.fna.gz
+wget ftp://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/000/149/365/GCA_000149365.1_ASM14936v1/GCA_000149365.1_ASM14936v1_genomic.gff.gz
+wget ftp://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/000/149/365/GCA_000149365.1_ASM14936v1/GCA_000149365.1_ASM14936v1_protein.faa.gz
+wget ftp://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/000/149/365/GCA_000149365.1_ASM14936v1/GCA_000149365.1_ASM14936v1_rna_from_genomic.fna.gz
 gzip -d *.gz
 sed -i 's/>.*locus_tag=\([^]]*\)].*/>rna-\1/' GCA_000149365.1_ASM14936v1_rna_from_genomic.fna
 python fix_ids.py > GCA_000149365.1_ASM14936v1_protein.faa.fix
