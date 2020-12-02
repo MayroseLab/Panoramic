@@ -31,6 +31,9 @@ def init():
     # load HQ genomes info file
     config['hq_info'] = SampleInfoReader.sample_table_reader(filename=config['hq_genomes_info_file'],
                 delimiter='\t', key_name='sample', col_names=['annotation_gff','proteins_fasta'])
+    # convert '_' to '-' in sample names
+    config['samples_info'] = {s.replace('_','-'): config['samples_info'][s] for s in config['samples_info']}
+    config['hq_info'] = {s.replace('_','-'): config['hq_info'][s] for s in config['hq_info']}
     # ensure not duplicate sample names exist
     all_names = list(config['samples_info'].keys()) + list(config['hq_info'].keys())
     assert len(all_names) == len(set(all_names)), "Can't use duplicate sample names!"
