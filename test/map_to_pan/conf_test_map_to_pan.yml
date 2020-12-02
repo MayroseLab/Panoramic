@@ -27,6 +27,7 @@ repeats_library: Panoramic/test/data/repeats.fa
 transcripts: Panoramic/test/data/orf_coding_all_R64-2-1_20150113.fasta
 proteins: Panoramic/test/data/orf_trans_all_R64-2-1_20150113.fasta
 augustus_species: saccharomyces_cerevisiae_S288C
+min_protein: 50
 
 # Annotation filtration
 max_aed: 0.4
