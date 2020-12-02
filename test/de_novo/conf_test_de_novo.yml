@@ -9,7 +9,6 @@ reference_name: S288C
 reference_genome: Panoramic/test/data/S288C_reference_sequence_R64-2-1_20150113.fsa
 reference_annotation: Panoramic/test/data/saccharomyces_cerevisiae_R64-2-1_20150113.gff
 reference_proteins: Panoramic/test/data/orf_trans_all_R64-2-1_20150113.fasta
-id_simplify_function: "lambda x: x"
 
 # Reads pre processing (RPP)
 trimming_modules: "SLIDINGWINDOW:5:15 MINLEN:40"
@@ -19,14 +18,12 @@ merge_max_mismatch_ratio: 0.2
 # Assembly
 min_length: 500
 min_coverage: 2
-ragoo_script: /groups/itay_mayrose/liorglic/RaGOO/ragoo.py
-gap_size: 10
-contig_borders_script: /groups/itay_mayrose/liorglic/RaGOO/ragoo_utilities/get_contig_borders.py
 busco_set: saccharomycetes_odb10
 
 # GAWN liftover
 liftover_transcripts: Panoramic/test/data/orf_coding_all_R64-2-1_20150113.fasta
 min_identity: 95
+max_ratio_diff: 0.1
 
 # Annotation
 maker_load: ""
