@@ -28,7 +28,7 @@ config_path = sys.argv[i+1]
 required = ['samples_info_file','hq_genomes_info_file','out_dir','reference_name',
             'reference_genome','reference_proteins','reference_annotation','trimming_modules',
             'merge_min_overlap','merge_max_mismatch_ratio','min_length','min_coverage','busco_set',
-            'liftover_transcripts','min_identity','max_ratio_diff','maker_load','repeats_library',
+            'liftover_transcripts','min_identity','max_ratio_diff','repeats_library',
             'additional_transcripts','proteins','augustus_species','min_protein','max_aed','ppn']
 for r in required:
   assert (r in config and config[r]), "Required argument %s is missing or empty in configuration file %s" %(r,config_path)
