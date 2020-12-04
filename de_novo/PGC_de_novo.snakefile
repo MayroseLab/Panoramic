@@ -20,6 +20,17 @@ print(sys.version)
 sys.path.append(utils_dir)
 from snakemakeUtils import *
 
+PIPELINE = 'De-novo assembly'
+
+# print Welcome message
+ver = get_git_commit()
+print("#########################")
+print("#### Panoramic %s ####" % ver)
+if '-' in ver:
+    print("WARNING: you are using an unstable release!\nYou may want to git-checkout to the latest tagged version")
+print('Pan-genome construction using the %s pipeline' % PIPELINE)
+print("#########################")
+
 # get configfile path
 i = sys.argv.index('--configfile')
 config_path = sys.argv[i+1]

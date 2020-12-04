@@ -4,6 +4,7 @@ import os
 import errno
 import csv
 import re
+from git import Repo, GitCommandError
 
 def dict_merge(dct, merge_dct):
     """ Recursive dict merge. Inspired by :meth:``dict.update()``, instead of
@@ -176,3 +177,13 @@ class SampleInfoReader(object):
                 fileinfo_dict[row[key_idx]]={col.lower():row[col].strip() for col in col_strs}
             return fileinfo_dict
 
+def get_git_commit():
+    """
+    Get the current git tag/commit
+    of the code.
+    """
+    repo = Repo(os.path.dirname(__file__),search_parent_directories=True)
+    try:
+        return repo.git.describe()
+    except GitCommandError:
+        return 'v0.0.0'
