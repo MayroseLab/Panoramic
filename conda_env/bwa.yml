@@ -2,4 +2,4 @@ name: bwa
 channels:
   - bioconda
 dependencies:
-  - bwa
+  - bwa=0.7.17

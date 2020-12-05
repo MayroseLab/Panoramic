@@ -1,0 +1,7 @@
+name: snakemake-panoramic_new
+channels:
+  - bioconda
+  - conda-forge
+dependencies:
+  - snakemake=5.30.1
+  - gitpython

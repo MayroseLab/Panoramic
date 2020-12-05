@@ -2,6 +2,6 @@ name: GAWN
 channels:
   - bioconda
 dependencies:
-  - gmap
-  - cufflinks
-  - blast
+  - gmap=2020.10.14
+  - cufflinks=2.2.1
+  - blast=2.2.31

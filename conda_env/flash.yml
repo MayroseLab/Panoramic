@@ -2,4 +2,4 @@ name: flash
 channels:
   - bioconda
 dependencies:
-  - flash
+  - flash=1.2.11

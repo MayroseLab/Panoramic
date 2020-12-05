@@ -4,4 +4,4 @@ channels:
   - bioconda
 dependencies:
   - python=3.7.3
-  - trimmomatic
+  - trimmomatic=0.39

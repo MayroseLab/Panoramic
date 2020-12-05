@@ -2,4 +2,4 @@ name: cd-hit
 channels:
   - bioconda
 dependencies:
-  - cd-hit
+  - cd-hit=4.8.1

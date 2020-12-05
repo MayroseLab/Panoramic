@@ -3,5 +3,5 @@ channels:
   - conda-forge
   - HCC
 dependencies:
-  - aspera-cli
-  - curl
+  - aspera-cli=3.9.1
+  - curl=7.71.1

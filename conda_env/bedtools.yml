@@ -2,5 +2,5 @@ name: bdtools
 channels:
   - bioconda
 dependencies:
-  - bedtools
-  - samtools
+  - bedtools=2.29.2
+  - samtools=1.11

@@ -2,4 +2,4 @@ name: faSplit
 channels:
   - bioconda
 dependencies:
-  - ucsc-fasplit
+  - ucsc-fasplit=377

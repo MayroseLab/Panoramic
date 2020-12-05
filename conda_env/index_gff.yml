@@ -2,6 +2,6 @@ name: index_gff
 channels:
   - bioconda
 dependencies:
-  - bedtools
-  - samtools
-  - tabix
+  - bedtools=2.29.2
+  - samtools=1.11
+  - tabix=0.2.6

@@ -3,8 +3,8 @@ channels:
   - conda-forge
   - bioconda
 dependencies:
-  - intervaltree
-  - biopython
-  - pafpy
-  - gffutils
-  - minimap2
+  - intervaltree=3.0.2
+  - biopython=1.77
+  - pafpy=0.1.2
+  - gffutils=0.10.1
+  - minimap2=2.17

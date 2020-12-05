@@ -2,4 +2,4 @@ name: orthofinder2
 channels:
   - bioconda
 dependencies:
-  - orthofinder
+  - orthofinder=2.5.1

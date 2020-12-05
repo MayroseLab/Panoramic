@@ -3,10 +3,10 @@ channels:
   - conda-forge
   - bioconda
 dependencies:
-  - jupyterlab
-  - pandas
-  - numpy
-  - seaborn
-  - plotly
-  - biopython
+  - jupyterlab=2.2.9
+  - pandas=1.1.4
+  - numpy=1.19.4
+  - seaborn=0.11.0
+  - plotly=4.13.0
+  - biopython=1.77
   - scipy=1.4.1

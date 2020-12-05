@@ -2,5 +2,5 @@ name: gffutils
 channels:
   - bioconda
 dependencies:
-  - gffutils
-  - biopython
+  - gffutils=0.10.1
+  - biopython=1.77
