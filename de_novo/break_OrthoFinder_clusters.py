@@ -51,6 +51,7 @@ import pandas as pd
 import numpy as np
 from ete3 import Tree
 from itertools import product, chain
+from collections import OrderedDict
 import argparse
 
 def tidy_split(df, column, sep='|', keep=False):
@@ -188,7 +189,7 @@ def tree_to_distance_matrix(tree, sister_only=False):
       d.append(dist)
     items.append((genome_name,d))
     genomes.append(genome_name)
-  return pd.DataFrame.from_items(items, orient="index", columns=genomes)
+  return pd.DataFrame.from_dict(OrderedDict(items), orient="index", columns=genomes)
 
 def row_col_min(df, cutoff=0):
   """
