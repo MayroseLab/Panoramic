@@ -139,8 +139,15 @@ rule download_fastq:
         """
         # find ssh key in conda env
         ssh=`find ./.snakemake/conda/ -name asperaweb_id_dsa.openssh | head -1`
-        # run
-        python {input} {params.ena_ref} --output_directory {params.sample_out_dir} --ssh-key $ssh
+        # download (retry 3 times)
+        n=0
+        until [ "$n" -ge 3 ]
+        do
+            python {input} {params.ena_ref} --output_directory {params.sample_out_dir} --ssh-key $ssh && break
+            n=$((n+1)) 
+            echo "Download failed! Retry in 30 sec ($n/3)..."
+            sleep 30
+        done
         """
 
 rule quality_trimming:
