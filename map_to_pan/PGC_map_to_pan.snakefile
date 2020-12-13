@@ -133,7 +133,7 @@ rule assemble_genomes:
         r1=expand(config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}_1_clean_paired.fastq.gz", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()]),
         r2=expand(config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}_2_clean_paired.fastq.gz", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()])
     params:
-        genome_assembly_snakefile=os.path.join(pipeline_dir, 'genome_assembly', 'genome_assembly.snakefile'),
+        genome_assembly_snakefile=os.path.join(os.path.dirname(pipeline_dir), 'genome_assembly', 'genome_assembly.snakefile'),
         queue=config['queue'],
         jobs=config['max_jobs'],
         qsub_wrapper_script=get_cluster_command(),

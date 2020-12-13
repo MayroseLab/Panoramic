@@ -122,7 +122,7 @@ rule assemble_genomes:
         assemblies=expand(config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/ragtag.scaffolds.fasta", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()]),
         agp=expand(config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/ragtag.scaffolds.agp", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()]),
     params:
-        genome_assembly_snakefile=os.path.join(pipeline_dir, 'genome_assembly', 'genome_assembly.snakefile'),
+        genome_assembly_snakefile=os.path.join(os.path.dirname(pipeline_dir), 'genome_assembly', 'genome_assembly.snakefile'),
         queue=config['queue'],
         jobs=config['max_jobs'],
         qsub_wrapper_script=get_cluster_command(),
