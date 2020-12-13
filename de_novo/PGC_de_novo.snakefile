@@ -12,6 +12,7 @@ of the following general steps:
 6. Summarize and create PAV matrix
 """
 
+print(sys.argv)
 import os
 pipeline_dir = os.path.dirname(os.path.realpath(workflow.snakefile))
 utils_dir = os.path.dirname(pipeline_dir) + '/util'
@@ -122,7 +123,7 @@ rule assemble_genomes:
         genome_assembly_snakefile=os.path.join(pipeline_dir, 'genome_assembly', 'genome_assembly.snakefile'),
         queue=config['queue'],
         jobs=config['max_jobs'],
-        qsub_wrapper_script=utils_dir + '/pbs_qsub_snakemake_wrapper.py',
+        qsub_wrapper_script=get_cluster_command(),
         priority=config['priority'],
         jobscript=utils_dir + '/jobscript.sh',
         logs_dir=LOGS_DIR,
@@ -134,7 +135,7 @@ rule assemble_genomes:
         # change dir to avoid snakemake locks of main pipeline
         cd {params.snakemake_dir}
         # run assembly pipeline
-        snakemake -s {params.genome_assembly_snakefile} --configfile {input.yml} --cluster "python {params.qsub_wrapper_script}" -j {params.jobs} --latency-wait 60 --restart-times 3 --jobscript {params.jobscript}
+        snakemake -s {params.genome_assembly_snakefile} --configfile {input.yml} {params.qsub_wrapper_script} -j {params.jobs} --latency-wait 60 --restart-times 3 --jobscript {params.jobscript}
         """
 
 rule prep_liftover:
@@ -426,7 +427,7 @@ rule maker_annotation:
         queue=config['queue'],
         jobs=calc_n_chunks(config['max_jobs'],len(config['samples_info'])),
         annotation_dir=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}",
-        qsub_wrapper_script=utils_dir + '/pbs_qsub_snakemake_wrapper.py',
+        qsub_wrapper_script=get_cluster_command(),
         priority=config['priority'],
         jobscript=utils_dir + '/jobscript.sh',
         logs_dir=LOGS_DIR
@@ -435,7 +436,7 @@ rule maker_annotation:
     shell:
         """
         cd {params.annotation_dir}
-        snakemake -s {params.run_maker_in_chunks_snakefile} --configfile {input} --cluster "python {params.qsub_wrapper_script}" -j {params.jobs} --latency-wait 60 --restart-times 3 --jobscript {params.jobscript}
+        snakemake -s {params.run_maker_in_chunks_snakefile} --configfile {input} {params.qsub_wrapper_script} -j {params.jobs} --latency-wait 60 --restart-times 3 --jobscript {params.jobscript}
         """
 
 rule make_chunks_bed:

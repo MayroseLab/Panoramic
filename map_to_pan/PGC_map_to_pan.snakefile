@@ -134,7 +134,7 @@ rule assemble_genomes:
         genome_assembly_snakefile=os.path.join(pipeline_dir, 'genome_assembly', 'genome_assembly.snakefile'),
         queue=config['queue'],
         jobs=config['max_jobs'],
-        qsub_wrapper_script=utils_dir + '/pbs_qsub_snakemake_wrapper.py',
+        qsub_wrapper_script=get_cluster_command(),
         priority=config['priority'],
         jobscript=utils_dir + '/jobscript.sh',
         logs_dir=LOGS_DIR,
@@ -146,7 +146,7 @@ rule assemble_genomes:
         # change dir to avoid snakemake locks of main pipeline
         cd {params.snakemake_dir}
         # run assembly pipeline
-        snakemake -s {params.genome_assembly_snakefile} --configfile {input.yml} --cluster "python {params.qsub_wrapper_script}" -j {params.jobs} --latency-wait 60 --restart-times 3 --jobscript {params.jobscript}
+        snakemake -s {params.genome_assembly_snakefile} --configfile {input.yml} {params.qsub_wrapper_script} -j {params.jobs} --latency-wait 60 --restart-times 3 --jobscript {params.jobscript}
         """
 
 rule simplify_ref_gff_ID:
@@ -419,7 +419,7 @@ rule maker_annotation:
         queue=config['queue'],
         jobs=config['max_jobs'],
         annotation_dir=config["out_dir"] + "/all_samples/annotation",
-        qsub_wrapper_script=utils_dir + '/pbs_qsub_snakemake_wrapper.py',
+        qsub_wrapper_script=get_cluster_command(),
         priority=config['priority'],
         jobscript=utils_dir + '/jobscript.sh',
         logs_dir=LOGS_DIR
@@ -428,7 +428,7 @@ rule maker_annotation:
     shell:
         """
         cd {params.annotation_dir}
-        snakemake -s {params.run_maker_in_chunks_snakefile} --configfile {input} --cluster "python {params.qsub_wrapper_script}" -j {params.jobs} --latency-wait 60 --restart-times 3 --jobscript {params.jobscript}
+        snakemake -s {params.run_maker_in_chunks_snakefile} --configfile {input} {params.qsub_wrapper_script} -j {params.jobs} --latency-wait 60 --restart-times 3 --jobscript {params.jobscript}
         """
 
 rule rename_genes:
