@@ -17,8 +17,8 @@ merge_min_overlap: 10
 merge_max_mismatch_ratio: 0.2
 
 # Assembly
+assembler: spades
 min_length: 500
-min_coverage: 2
 busco_set:
 
 # Annotation

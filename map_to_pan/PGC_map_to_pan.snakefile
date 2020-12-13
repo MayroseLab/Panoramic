@@ -41,11 +41,13 @@ config_path = sys.argv[i+1]
 # assert required params are in config
 required = ["samples_info_file","hq_genomes_info_file","out_dir","reference_name","reference_genome",
             "reference_annotation","reference_proteins","id_simplify_function","trimming_modules",
-            "merge_min_overlap","merge_max_mismatch_ratio","min_length","min_coverage","busco_set",
+            "merge_min_overlap","merge_max_mismatch_ratio","assembler","min_length","busco_set",
             "repeats_library","transcripts","proteins","augustus_species","min_protein","max_aed",
             "similarity_threshold_proteins","HQ_min_cov","LQ_min_cov","min_read_depth","ppn"]
 for r in required:
   assert (r in config and config[r]), "Required argument %s is missing or empty in configuration file %s" %(r,config_path)
+assemblers = ['spades','minia','megahit']
+assert config['assembler'] in assemblers, "'assembler' must be one of: %s" % ', '.join(assemblers)
 
 def init():
     #load_info_file

@@ -27,7 +27,7 @@ config_path = sys.argv[i+1]
 # assert required params are in config
 required = ['samples_info_file','out_dir','reference_genome',
             'trimming_modules','merge_min_overlap','merge_max_mismatch_ratio',
-            'min_length','min_coverage','busco_set','ppn']
+            'assembler','min_length','busco_set','ppn']
 
 for r in required:
   assert (r in config and config[r]), "Required argument %s is missing or empty in configuration file %s" %(r,config_path)
@@ -191,29 +191,116 @@ rule combine_unpaired:
         cat {input.r1_unpaired} {input.r2_unpaired} > {output}
         """
 
-rule genome_assembly:
-    """
-    De novo assembly of reads into contigs
-    """
-    input:
-        r1_paired=config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}.notCombined_1.fastq.gz",
-        r2_paired=config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}.notCombined_2.fastq.gz",
-        unpaired=config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}_clean_unpaired.fastq.gz",
-        merged=config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}.extendedFrags.fastq.gz"
-    output:
-        config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contigs.fasta"
-    params:
-        out_dir=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}",
-        ppn=config['ppn'],
-        queue=config['queue'],
-        priority=config['priority'],
-        logs_dir=LOGS_DIR
-    conda:
-        CONDA_ENV_DIR + '/spades.yml'
-    shell:
+if config['assembler'] == 'spades':
+    rule genome_assembly:
         """
-        spades.py -o {params.out_dir} --pe1-1 {input.r1_paired} --pe1-2 {input.r2_paired} --pe1-m {input.merged} --pe1-s {input.unpaired} --threads {params.ppn}
+        De novo assembly of reads into contigs using SPAdes
         """
+        input:
+            r1_paired=config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}.notCombined_1.fastq.gz",
+            r2_paired=config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}.notCombined_2.fastq.gz",
+            unpaired=config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}_clean_unpaired.fastq.gz",
+            merged=config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}.extendedFrags.fastq.gz"
+        output:
+            config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contigs.fasta"
+        params:
+            out_dir=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}",
+            ppn=config['ppn'],
+            queue=config['queue'],
+            priority=config['priority'],
+            logs_dir=LOGS_DIR
+        conda:
+            CONDA_ENV_DIR + '/spades.yml'
+        shell:
+            """
+            spades.py -o {params.out_dir} --pe1-1 {input.r1_paired} --pe1-2 {input.r2_paired} --pe1-m {input.merged} --pe1-s {input.unpaired} --threads {params.ppn}
+            """
+
+elif config['assembler'] == 'minia':
+    rule fetch_minia:
+        """
+        Download latest version of gat-minia-pipeline
+        """
+        output:
+            config["out_dir"] + "/gatb-minia-pipeline/gatb"
+        params:
+            queue=config['queue'],
+            priority=config['priority'],
+            logs_dir=LOGS_DIR,
+            out_dir=config["out_dir"]
+        shell:
+            """
+            cd {params.out_dir}
+            git clone --recursive https://github.com/GATB/gatb-minia-pipeline
+            """
+
+    rule create_single_reads_list:
+        """
+        Create a file with merged and unpaired files for Minia
+        """
+        input:
+            unpaired=config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}_clean_unpaired.fastq.gz",
+            merged=config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}.extendedFrags.fastq.gz"
+        output:
+            config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/single_reads.list"
+        params:
+            queue=config['queue'],
+            priority=config['priority'],
+            logs_dir=LOGS_DIR
+        shell:
+            """
+            echo "{input.unpaired}" > {output}
+            echo "{input.merged}" >> {output}
+            """
+
+    rule genome_assembly:
+        """
+        De novo assembly of reads into contigs using Minia
+        """
+        input:
+            minia=config["out_dir"] + "/gatb-minia-pipeline/gatb",
+            r1_paired=config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}.notCombined_1.fastq.gz",
+            r2_paired=config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}.notCombined_2.fastq.gz",
+            single_reads_list=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/single_reads.list"
+        output:
+            config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contigs.fasta"
+        params:
+            out_dir=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}",
+            ppn=config['ppn'],
+            queue=config['queue'],
+            priority=config['priority'],
+            logs_dir=LOGS_DIR
+        shell:
+            """
+            {input.minia} -1 {input.r1_paired} -2 {input.r2_paired} -s {input.single_reads_list} --nb-cores {params.ppn} --no-scaffolding -o {params.out_dir}/assembly
+            ln {params.out_dir}/assembly_final.contigs.fa {output}
+            """
+
+elif config['assembler'] == 'megahit':
+    rule genome_assembly:
+        """
+        De novo assembly of reads into contigs using MEGAHIT
+        """
+        input:
+            r1_paired=config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}.notCombined_1.fastq.gz",
+            r2_paired=config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}.notCombined_2.fastq.gz",
+            unpaired=config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}_clean_unpaired.fastq.gz",
+            merged=config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}.extendedFrags.fastq.gz"
+        output:
+            config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contigs.fasta"
+        conda:
+            CONDA_ENV_DIR + '/megahit.yml'
+        params:
+            out_dir=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}",
+            ppn=config['ppn'],
+            queue=config['queue'],
+            priority=config['priority'],
+            logs_dir=LOGS_DIR
+        shell:
+            """
+            megahit -1 {input.r1_paired} -2 {input.r2_paired} -r {input.merged},{input.unpaired} -t {params.ppn} -o {params.out_dir}
+            ln {params.out_dir}/final.contigs.fa {output}
+            """
 
 rule filter_contigs:
     """
