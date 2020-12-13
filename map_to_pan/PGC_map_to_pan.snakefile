@@ -422,7 +422,7 @@ rule maker_annotation:
         queue=config['queue'],
         jobs=config['max_jobs'],
         annotation_dir=config["out_dir"] + "/all_samples/annotation",
-        qsub_wrapper_script=get_cluster_command(),
+        qsub_wrapper_script=qsub_wrapper_script,
         priority=config['priority'],
         jobscript=utils_dir + '/jobscript.sh',
         logs_dir=LOGS_DIR
