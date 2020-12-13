@@ -82,7 +82,7 @@ onerror:
 #                RULES              |
 #------------------------------------
 
-localrules: all, prep_liftover_chunks_tsv, prep_annotation_chunks_tsv, prep_liftover_yaml, prep_annotation_yaml
+localrules: all, prep_liftover_chunks_tsv, prep_annotation_chunks_tsv, prep_liftover_yaml, prep_annotation_yaml, maker_annotation
 
 rule all:
     input:
@@ -105,240 +105,36 @@ ena_fast_download_url = "https://raw.githubusercontent.com/wwood/ena-fast-downlo
 wildcard_constraints:
     sample="[^_]+"
 
-rule fetch_ena_fast_download_script:
+rule assemble_genomes:
     """
-    Download latest version on ena-fast-download.py
-    """
-    output:
-        config["out_dir"] + "/ena-fast-download.py"
-    params:
-        queue=config['queue'],
-        priority=config['priority'],
-        logs_dir=LOGS_DIR
-    run:
-        shell("wget %s -O {output}" % ena_fast_download_url)
-
-rule download_fastq:
-    """
-    Download reads data from ENA
+    Download reads, preprocess, assemble,
+    and scaffold all input genomes using
+    a dedicated pipeline.
     """
     input:
-        config["out_dir"] + "/ena-fast-download.py"
+        yml=config_path,
+        tsv=config['samples_info_file'],
     output:
-        config["out_dir"] + "/per_sample/{sample}/data/{ena_ref}_1.fastq.gz",
-        config["out_dir"] + "/per_sample/{sample}/data/{ena_ref}_2.fastq.gz"
+        assembly_stats_tsv=config["out_dir"] + "/all_samples/stats/assembly_stats.tsv",
+        assemblies=expand(config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/ragtag.scaffolds.fasta", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()]),
+        agp=expand(config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/ragtag.scaffolds.agp", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()]),
     params:
-        sample_out_dir=config["out_dir"] + "/per_sample/{sample}/data",
-        ena_ref=get_sample,
+        genome_assembly_snakefile=os.path.join(pipeline_dir, 'genome_assembly', 'genome_assembly.snakefile'),
         queue=config['queue'],
+        jobs=config['max_jobs'],
+        qsub_wrapper_script=utils_dir + '/pbs_qsub_snakemake_wrapper.py',
         priority=config['priority'],
-        logs_dir=LOGS_DIR
-    conda:
-        CONDA_ENV_DIR + '/ena_download.yml'
-    shell:
-        """
-        # find ssh key in conda env
-        ssh=`find ./.snakemake/conda/ -name asperaweb_id_dsa.openssh | head -1`
-        # download (retry 3 times)
-        n=0
-        until [ "$n" -ge 3 ]
-        do
-            python {input} {params.ena_ref} --output_directory {params.sample_out_dir} --ssh-key $ssh && break
-            n=$((n+1)) 
-            echo "Download failed! Retry in 30 sec ($n/3)..."
-            sleep 30
-        done
-        """
-
-rule quality_trimming:
-    """
-    Trim/remove low quality reads
-    """
-    input:
-        r1=config["out_dir"] + "/per_sample/{sample}/data/{ena_ref}_1.fastq.gz",
-        r2=config["out_dir"] + "/per_sample/{sample}/data/{ena_ref}_2.fastq.gz"
-    output:
-        r1_paired=config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}_1_clean_paired.fastq.gz",
-        r1_unpaired=config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}_1_clean_unpaired.fastq.gz",
-        r2_paired=config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}_2_clean_paired.fastq.gz",
-        r2_unpaired=config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}_2_clean_unpaired.fastq.gz"
-    params:
-        trimming_modules=config['trimming_modules'],
-        queue=config['queue'],
-        priority=config['priority'],
+        jobscript=utils_dir + '/jobscript.sh',
         logs_dir=LOGS_DIR,
-        ppn=config['ppn']
+        snakemake_dir=config["out_dir"]
     conda:
-        CONDA_ENV_DIR + '/trimmomatic.yml'
+        CONDA_ENV_DIR + '/snakemake.yml'
     shell:
         """
-        trimmomatic PE {input.r1} {input.r2} {output.r1_paired} {output.r1_unpaired} {output.r2_paired} {output.r2_unpaired} {params.trimming_modules} -threads {params.ppn}
-        """
-
-rule merge_reads:
-    """
-    Merge read pairs to create long fragments
-    """
-    input:
-        r1_paired=config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}_1_clean_paired.fastq.gz",
-        r2_paired=config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}_2_clean_paired.fastq.gz"
-    output:
-        config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}.extendedFrags.fastq.gz",
-        config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}.notCombined_1.fastq.gz",
-        config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}.notCombined_2.fastq.gz"
-    params:
-        merge_out_dir=config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}",
-        merge_min_overlap=config['merge_min_overlap'],
-        merge_max_mismatch_ratio=config['merge_max_mismatch_ratio'],
-        queue=config['queue'],
-        priority=config['priority'],
-        logs_dir=LOGS_DIR,
-        ppn=config['ppn']
-    conda:
-        CONDA_ENV_DIR + '/flash.yml'
-    shell:
-        """
-        flash {input.r1_paired} {input.r2_paired} -d {params.merge_out_dir} -m {params.merge_min_overlap} -x {params.merge_max_mismatch_ratio} -z -t {params.ppn} -o {wildcards.ena_ref}
-        """
-
-rule combine_unpaired:
-    """
-    Combine unpaired R1 and R2 into one file
-    """
-    input:
-        r1_unpaired=config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}_1_clean_unpaired.fastq.gz",
-        r2_unpaired=config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}_2_clean_unpaired.fastq.gz"
-    output:
-        config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}_clean_unpaired.fastq.gz"
-    params:
-        queue=config['queue'],
-        priority=config['priority'],
-        logs_dir=LOGS_DIR,
-    shell:
-        """
-        cat {input.r1_unpaired} {input.r2_unpaired} > {output}
-        """
-
-rule genome_assembly:
-    """
-    De novo assembly of reads into contigs
-    """
-    input:
-        r1_paired=config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}.notCombined_1.fastq.gz",
-        r2_paired=config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}.notCombined_2.fastq.gz",
-        unpaired=config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}_clean_unpaired.fastq.gz",
-        merged=config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}.extendedFrags.fastq.gz"
-    output:
-        config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contigs.fasta"
-    params:
-        out_dir=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}",
-        ppn=config['ppn'],
-        queue=config['queue'],
-        priority=config['priority'],
-        logs_dir=LOGS_DIR
-    conda:
-        CONDA_ENV_DIR + '/spades.yml'
-    shell:
-        """
-        spades.py -o {params.out_dir} --pe1-1 {input.r1_paired} --pe1-2 {input.r2_paired} --pe1-m {input.merged} --pe1-s {input.unpaired} --threads {params.ppn}
-        """
-
-rule filter_contigs:
-    """
-    Discard contigs shorter than L or with coverage lower than C (L, C given by user)
-    """
-    input:
-        config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contigs.fasta"
-    output:
-        config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contigs_filter.fasta"
-    params:
-        filter_script=utils_dir + '/filter_contigs.py',
-        min_length=config['min_length'],
-        min_coverage=config['min_coverage'],
-        queue=config['queue'],
-        priority=config['priority'],
-        logs_dir=LOGS_DIR
-    conda:
-        CONDA_ENV_DIR + '/gffutils.yml'
-    shell:
-        """
-        python {params.filter_script} {input} {params.min_length} {params.min_coverage} {output}
-        """
-
-rule ref_guided_assembly:
-    """
-    Assemble contigs into pseudomolecules
-    by mapping to the reference genome,
-    breaking chimeric contigs and then scaffolding
-    """
-    input:
-        contigs=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contigs_filter.fasta",
-        ref_genome=config['reference_genome'],
-    output:
-        corrected=config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/contigs_filter.corrected.fasta",
-        pm=config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/ragtag.scaffolds.fasta",
-        pm_agp=config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/ragtag.scaffolds.agp"
-    params:
-        out_dir=config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}",
-        queue=config['queue'],
-        priority=config['priority'],
-        ppn=config['ppn'],
-        logs_dir=LOGS_DIR
-    conda:
-        CONDA_ENV_DIR + '/RagTag.yml'
-    shell:
-        """
-        cd {params.out_dir}
-        ragtag.py correct {input.ref_genome} {input.contigs} -b 100
-        ragtag.py scaffold {input.ref_genome} {output.corrected} -C -r -g 10 -t {params.ppn}
-        """
-
-rule assembly_busco:
-    """
-    Run BUSCO on assembly
-    """
-    input:
-        config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/ragtag.scaffolds.fasta"
-    output:
-       config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/BUSCO/short_summary.BUSCO.txt"
-    params:
-        assembly_dir=config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output",
-        busco_set=config['busco_set'],
-        queue=config['queue'],
-        priority=config['priority'],
-        logs_dir=LOGS_DIR,
-        ppn=config['ppn'] + 1
-    conda:
-        CONDA_ENV_DIR + '/busco.yml'
-    shell:
-        """
-        cd {params.assembly_dir}
-        busco -i {input} -o BUSCO -m genome -l {params.busco_set} -c {params.ppn} -f
-        cp {params.assembly_dir}/BUSCO/short_summary.specific.{params.busco_set}.BUSCO.txt {output}
-        """
-
-rule assembly_quast:
-    """
-    Run QUAST on filtered assembly to get assembly stats and QA
-    """
-    input:
-        contigs=config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/contigs_filter.corrected.fasta",
-        r1=config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}_1_clean_paired.fastq.gz",
-        r2=config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}_2_clean_paired.fastq.gz"
-    output:
-        config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/QUAST/report.html",
-        config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/QUAST/report.tsv"
-    params:
-        out_dir=config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/QUAST",
-        queue=config['queue'],
-        priority=config['priority'],
-        logs_dir=LOGS_DIR,
-        ppn=config['ppn']
-    conda:
-        CONDA_ENV_DIR + '/quast.yml'
-    shell:
-        """
-        quast {input.contigs} -o {params.out_dir} -t {params.ppn} -1 {input.r1} -2 {input.r2}
+        # change dir to avoid snakemake locks of main pipeline
+        cd {params.snakemake_dir}
+        # run assembly pipeline
+        snakemake -s {params.genome_assembly_snakefile} --configfile {input.yml} --cluster "python {params.qsub_wrapper_script}" -j {params.jobs} --latency-wait 60 --restart-times 3 --jobscript {params.jobscript}
         """
 
 rule prep_liftover:
@@ -850,8 +646,6 @@ rule index_evidence_gff:
         config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/evidence/maker.all.chr.pred_gff:maker.gff",
         config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/evidence/maker.all.chr.protein2genome.gff",
         config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/evidence/chunks.bed",
-        config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/QUAST/report.html",
-        config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/BUSCO/short_summary.BUSCO.txt"
     output:
         config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/evidence/done"
     params:
@@ -1238,88 +1032,6 @@ rule calculate_stepwise_stats:
         """
         python {params.stepwise_script} {input} 100 {output}
         """
-
-# if there are any LQ samples, calculate assembly stats
-if config['samples_info']:
-    rule get_read_length:
-        """
-        Find raw data read length for stats report
-        """
-        input:
-            config["out_dir"] + "/per_sample/{sample}/data/{ena_ref}_1.fastq.gz"
-        output:
-            config["out_dir"] + "/per_sample/{sample}/data/{ena_ref}.read_length"
-        params:
-            queue=config['queue'],
-            priority=config['priority'],
-            logs_dir=LOGS_DIR
-        shell:
-            """
-            set +o pipefail;
-            zcat {input} | head -2 | tail -1 | wc | awk '{{print $3}}' > {output}
-            """
-    
-    rule prep_for_collect_stats:
-        """
-        Prepare the TSV required for
-        collecting assembly stats
-        """
-        input:
-            quast=expand(config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/QUAST/report.tsv", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()]),
-            busco=expand(config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/BUSCO/short_summary.BUSCO.txt", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()]),
-            ragtag=expand(config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/ragtag.scaffolds.fasta", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()]),
-            read_length=expand(config["out_dir"] + "/per_sample/{sample}/data/{ena_ref}.read_length", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()])
-        output:
-            config["out_dir"] + "/all_samples/stats/assembly_stats_files.tsv"
-        params:
-            samples=' '.join(config['samples_info'].keys()),
-            n_samples=len(config['samples_info']),
-            queue=config['queue'],
-            priority=config['priority'],
-            logs_dir=LOGS_DIR,
-        shell:
-            """
-            set -e
-            paste <(echo {params.samples} | tr ' ' "\\n") <(echo {input.quast} | tr ' ' "\\n") <(echo {input.busco} | tr ' ' "\\n") <(echo {input.ragtag} | tr ' ' "\\n") <(echo {input.read_length} | tr ' ' "\\n") > {output}
-            exit 0
-            """
-    
-    rule collect_assembly_stats:
-        """
-        Collect QUAST, BUSCO and RagTag
-        stats for LQ samples
-        """
-        input:
-            config["out_dir"] + "/all_samples/stats/assembly_stats_files.tsv"
-        output:
-            config["out_dir"] + "/all_samples/stats/assembly_stats.tsv"
-        params:
-            collect_script=pan_genome_report_dir + '/collect_stats.py',
-            queue=config['queue'],
-            priority=config['priority'],
-            logs_dir=LOGS_DIR,
-        conda:
-            CONDA_ENV_DIR + '/jupyter.yml'
-        shell:
-            """
-            python {params.collect_script} {input} {output}
-            """
-
-# if pan-genome has only HQ samples - create empty assembly stats tsv
-else:
-    rule collect_assembly_stats:
-        """
-        """
-        output:
-            config["out_dir"] + "/all_samples/stats/assembly_stats.tsv"
-        params:
-            queue=config['queue'],
-            priority=config['priority'],
-            logs_dir=LOGS_DIR,
-        shell:
-            """
-            echo -e \"\\tAssembly\\t# contigs (>= 0 bp)\\t# contigs (>= 1000 bp)\\t# contigs (>= 5000 bp)\\t# contigs (>= 10000 bp) # contigs (>= 25000 bp)\\t# contigs (>= 50000 bp) Total length (>= 0 bp)\\tTotal length (>= 1000 bp)\\tTotal length (>= 5000 bp)\\tTotal length (>= 10000 bp)\\tTotal length (>= 25000 bp)\\tTotal length (>= 50000 bp)\\t# contigs\\tLargest contig\\tTotal length\\tGC (%%)\\tN50\\tN75\\tL50\\tL75\\t# total reads\\t# left\\t# right Mapped (%%)\\tProperly paired (%%)\\tAvg. coverage depth\\tCoverage >= 1x (%%)\\t# N's per 100 kbp\\t%% Complete BUSCOs\\t%% unmapped (Chr0)\\tQUAST report\\tRead length (bp)\" > {output}
-            """
 
 rule create_report_notebook:
     """

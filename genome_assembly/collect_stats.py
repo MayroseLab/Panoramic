@@ -52,6 +52,17 @@ with open(in_tsv) as f:
 
     columns.append(stats_df)
 
-stats_df = pd.concat(columns, axis=1)
-stats_df = stats_df.transpose()
-stats_df.to_csv(out_tsv, sep='\t')
+if not columns:
+  headers = ["Assembly","# contigs (>= 0 bp)","# contigs (>= 1000 bp)","# contigs (>= 5000 bp)",
+           "# contigs (>= 10000 bp) # contigs (>= 25000 bp)","# contigs (>= 50000 bp)",
+           "Total length (>= 0 bp)","Total length (>= 1000 bp)","Total length (>= 5000 bp)",
+           "Total length (>= 10000 bp)","Total length (>= 25000 bp)","Total length (>= 50000 bp)",
+           "# contigs","Largest contig","Total length","GC (%%)","N50","N75","L50","L75",
+           "# total reads","# left","# right Mapped (%%)","Properly paired (%%)","Avg. coverage depth",
+           "Coverage >= 1x (%%)","# N's per 100 kbp","%% Complete BUSCOs","%% unmapped (Chr0)",
+           "QUAST report","Read length (bp)"]
+  print('\t'.join(headers), file=out_tsv)
+else:
+  stats_df = pd.concat(columns, axis=1)
+  stats_df = stats_df.transpose()
+  stats_df.to_csv(out_tsv, sep='\t')
