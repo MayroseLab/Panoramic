@@ -20,18 +20,6 @@ from snakemakeUtils import *
 
 PIPELINE = 'Genome-assembly'
 
-# get configfile path
-i = sys.argv.index('--configfile')
-config_path = sys.argv[i+1]
-
-# assert required params are in config
-required = ['samples_info_file','out_dir','reference_genome',
-            'trimming_modules','merge_min_overlap','merge_max_mismatch_ratio',
-            'assembler','min_length','busco_set','ppn']
-
-for r in required:
-  assert (r in config and config[r]), "Required argument %s is missing or empty in configuration file %s" %(r,config_path)
-
 def init():
     #load_info_file
     config['samples_info'] = SampleInfoReader.sample_table_reader(filename=config['samples_info_file'],
@@ -313,7 +301,6 @@ rule filter_contigs:
     params:
         filter_script=utils_dir + '/filter_contigs.py',
         min_length=config['min_length'],
-        min_coverage=config['min_coverage'],
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR
@@ -321,7 +308,7 @@ rule filter_contigs:
         CONDA_ENV_DIR + '/gffutils.yml'
     shell:
         """
-        python {params.filter_script} {input} {params.min_length} {params.min_coverage} {output}
+        python {params.filter_script} {input} {params.min_length} {output}
         """
 
 rule ref_guided_assembly:
