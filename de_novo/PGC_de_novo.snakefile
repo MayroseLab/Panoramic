@@ -67,6 +67,7 @@ CONDA_ENV_DIR = os.path.dirname(pipeline_dir) + "/conda_env"
 annotation_pipeline_dir = os.path.dirname(pipeline_dir) + '/genome_annotation'
 pan_genome_report_dir = os.path.dirname(pipeline_dir) + '/pan_genome_report'
 annotation_templates_dir = annotation_pipeline_dir + "/annotation_templates/annotation"
+qsub_wrapper_script = get_cluster_command()
 
 onstart:
     write_config_file(config)
@@ -125,7 +126,7 @@ rule assemble_genomes:
         genome_assembly_snakefile=os.path.join(os.path.dirname(pipeline_dir), 'genome_assembly', 'genome_assembly.snakefile'),
         queue=config['queue'],
         jobs=config['max_jobs'],
-        qsub_wrapper_script=get_cluster_command(),
+        qsub_wrapper_script=qsub_wrapper_script,
         priority=config['priority'],
         jobscript=utils_dir + '/jobscript.sh',
         logs_dir=LOGS_DIR,
