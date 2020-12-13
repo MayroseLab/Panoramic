@@ -51,7 +51,7 @@ onerror:
 #                RULES              |
 #------------------------------------
 
-localrules: all, prep_liftover_chunks_tsv, prep_annotation_chunks_tsv, prep_liftover_yaml, prep_annotation_yaml
+localrules: all
 
 rule all:
     input:
@@ -98,7 +98,8 @@ rule download_fastq:
     shell:
         """
         # find ssh key in conda env
-        ssh=`find ./.snakemake/conda/ -name asperaweb_id_dsa.openssh | head -1`
+        env=`grep -l aspera ../.snakemake/conda/*.yaml | xargs basename | sed 's/\.yaml//'`
+        ssh="../.snakemake/conda/$env/etc/asperaweb_id_dsa.openssh"
         # download (retry 3 times)
         n=0
         until [ "$n" -ge 3 ]
