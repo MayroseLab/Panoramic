@@ -1,4 +1,4 @@
-name: busco
+name: quast
 channels:
   - conda-forge
   - bioconda
