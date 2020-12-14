@@ -138,7 +138,7 @@ rule assemble_genomes:
         # change dir to avoid snakemake locks of main pipeline
         cd {params.snakemake_dir}
         # run assembly pipeline
-        snakemake -s {params.genome_assembly_snakefile} --configfile {input.yml} {params.qsub_wrapper_script} -j {params.jobs} --latency-wait 60 --restart-times 3 --jobscript {params.jobscript} --use-conda
+        snakemake -s {params.genome_assembly_snakefile} --configfile {input.yml} {params.qsub_wrapper_script} -j {params.jobs} --latency-wait 60 --restart-times 3 --jobscript {params.jobscript} --use-conda > {params.snakemake_dir}/assemble_genomes.out 2> {params.snakemake_dir}/assemble_genomes.err
         """
 
 rule prep_liftover:
