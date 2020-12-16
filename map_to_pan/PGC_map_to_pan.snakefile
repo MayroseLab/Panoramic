@@ -36,7 +36,7 @@ print("#########################")
 
 # get configfile path
 i = sys.argv.index('--configfile')
-config_path = sys.argv[i+1]
+config_path = os.path.realpath(sys.argv[i+1])
 
 # assert required params are in config
 required = ["samples_info_file","hq_genomes_info_file","out_dir","reference_name","reference_genome",
@@ -70,7 +70,10 @@ CONDA_ENV_DIR = os.path.dirname(pipeline_dir) + '/conda_env'
 annotation_pipeline_dir = os.path.dirname(pipeline_dir) + '/genome_annotation'
 pan_genome_report_dir = os.path.dirname(pipeline_dir) + '/pan_genome_report'
 annotation_templates_dir = annotation_pipeline_dir + "/annotation_templates/annotation"
-qsub_wrapper_script = get_cluster_command()
+if 'cluster_wrapper' in config and config['cluster_wrapper']:
+    cluster_param = '--cluster \"%s\"' % config['cluster_wrapper']
+else:
+    cluster_param = ''
 
 onstart:
     write_config_file(config)
@@ -137,7 +140,7 @@ rule assemble_genomes:
         genome_assembly_snakefile=os.path.join(os.path.dirname(pipeline_dir), 'genome_assembly', 'genome_assembly.snakefile'),
         queue=config['queue'],
         jobs=config['max_jobs'],
-        qsub_wrapper_script=qsub_wrapper_script,
+        cluster_param=cluster_param,
         priority=config['priority'],
         jobscript=utils_dir + '/jobscript.sh',
         logs_dir=LOGS_DIR,
@@ -149,7 +152,7 @@ rule assemble_genomes:
         # change dir to avoid snakemake locks of main pipeline
         cd {params.snakemake_dir}
         # run assembly pipeline
-        snakemake -s {params.genome_assembly_snakefile} --configfile {input.yml} {params.qsub_wrapper_script} -j {params.jobs} --latency-wait 60 --restart-times 3 --jobscript {params.jobscript} --use-conda > {params.snakemake_dir}/assemble_genomes.out 2> {params.snakemake_dir}/assemble_genomes.err
+        snakemake -s {params.genome_assembly_snakefile} --configfile {input.yml} {params.cluster_param} -j {params.jobs} --latency-wait 60 --restart-times 3 --jobscript {params.jobscript} --use-conda -p > {params.snakemake_dir}/assemble_genomes.out 2> {params.snakemake_dir}/assemble_genomes.err
         """
 
 rule simplify_ref_gff_ID:
@@ -422,7 +425,7 @@ rule maker_annotation:
         queue=config['queue'],
         jobs=config['max_jobs'],
         annotation_dir=config["out_dir"] + "/all_samples/annotation",
-        qsub_wrapper_script=qsub_wrapper_script,
+        cluster_param=cluster_param,
         priority=config['priority'],
         jobscript=utils_dir + '/jobscript.sh',
         logs_dir=LOGS_DIR
@@ -431,7 +434,7 @@ rule maker_annotation:
     shell:
         """
         cd {params.annotation_dir}
-        snakemake -s {params.run_maker_in_chunks_snakefile} --configfile {input} {params.qsub_wrapper_script} -j {params.jobs} --latency-wait 60 --restart-times 3 --jobscript {params.jobscript}
+        snakemake -s {params.run_maker_in_chunks_snakefile} --configfile {input} {params.cluster_param} -j {params.jobs} --latency-wait 60 --restart-times 3 --jobscript {params.jobscript}
         """
 
 rule rename_genes:

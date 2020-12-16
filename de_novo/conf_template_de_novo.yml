@@ -42,3 +42,4 @@ priority: 0
 ppn:
 max_ram:
 max_jobs:
+cluster_wrapper: ""

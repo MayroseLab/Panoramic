@@ -188,16 +188,3 @@ def get_git_commit():
         return repo.git.describe()
     except GitCommandError:
         return 'v0.0.0'
-
-def get_cluster_command():
-    """
-    Get the cluster command used for running
-    the workflow - value of --cluster option.
-    If not used, return ''
-    """
-    try:
-        i = sys.argv.index('--cluster')
-        return '--cluster \"%s\"' % sys.argv[i+1]
-    except ValueError:
-        return ''
-
