@@ -287,7 +287,7 @@ elif config['assembler'] == 'megahit':
             logs_dir=LOGS_DIR
         shell:
             """
-            megahit -1 {input.r1_paired} -2 {input.r2_paired} -r {input.merged},{input.unpaired} -t {params.ppn} -o {params.out_dir}
+            megahit -1 {input.r1_paired} -2 {input.r2_paired} -r {input.merged},{input.unpaired} -t {params.ppn} -o {params.out_dir} --min-contig-len 1
             ln {params.out_dir}/final.contigs.fa {output}
             """
 
