@@ -280,13 +280,17 @@ elif config['assembler'] == 'megahit':
         conda:
             CONDA_ENV_DIR + '/megahit.yml'
         params:
-            out_dir=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}",
+            out_dir=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/megahit_out",
             ppn=config['ppn'],
             queue=config['queue'],
             priority=config['priority'],
             logs_dir=LOGS_DIR
         shell:
             """
+            if [ -d "{params.out_dir}" ]
+            then
+                rm -rf {params.out_dir}
+            fi
             megahit -1 {input.r1_paired} -2 {input.r2_paired} -r {input.merged},{input.unpaired} -t {params.ppn} -o {params.out_dir} --min-contig-len 1
             ln {params.out_dir}/final.contigs.fa {output}
             """
