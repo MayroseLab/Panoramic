@@ -117,8 +117,6 @@ def get_hq_sample_genome(wildcards):
 def get_hq_sample_proteins(wildcards):
     return config['hq_info'][wildcards.sample]['proteins_fasta']
 
-ena_fast_download_url = "https://raw.githubusercontent.com/wwood/ena-fast-download/master/ena-fast-download.py"
-
 wildcard_constraints:
     sample="[^_]+"
 
