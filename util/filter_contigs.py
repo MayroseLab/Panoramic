@@ -7,7 +7,7 @@ import sys
 
 in_fasta = sys.argv[1]
 min_len = int(sys.argv[2])
-out_fasta = sys.argv[4]
+out_fasta = sys.argv[3]
 
 out_recs = []
 for rec in SeqIO.parse(in_fasta,'fasta'):
