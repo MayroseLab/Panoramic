@@ -358,7 +358,7 @@ rule prep_chunks:
     shell:
         """
         chunkSize=`expr $(grep -v '>' {input} | tr -d '\n' | wc | awk '{{print $3}}') / {params.n_chunks}`
-        faSplit gap {input} $chunkSize {params.out_pref} -noGapDrops -minGapSize=10 -lift={output}
+        faSplit gap {input} $chunkSize {params.out_pref} -minGapSize=10 -lift={output}
         """ 
 
 rule prep_annotation_chunks_tsv:
