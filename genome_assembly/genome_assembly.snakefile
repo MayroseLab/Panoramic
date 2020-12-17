@@ -310,7 +310,7 @@ rule filter_contigs:
         priority=config['priority'],
         logs_dir=LOGS_DIR
     conda:
-        CONDA_ENV_DIR + '/gffutils.yml'
+        CONDA_ENV_DIR + '/biopython.yml'
     shell:
         """
         python {params.filter_script} {input} {params.min_length} {output}
