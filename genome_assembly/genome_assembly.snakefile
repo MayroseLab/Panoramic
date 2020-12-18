@@ -358,13 +358,14 @@ rule assembly_busco:
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR,
-        ppn=config['ppn'] + 1
+        ppn=config['ppn'],
+        cpus=config['ppn']-1
     conda:
         CONDA_ENV_DIR + '/busco.yml'
     shell:
         """
         cd {params.assembly_dir}
-        busco -i {input} -o BUSCO -m genome -l {params.busco_set} -c {params.ppn} -f
+        busco -i {input} -o BUSCO -m genome -l {params.busco_set} -c {params.cpus} -f
         cp {params.assembly_dir}/BUSCO/short_summary.specific.{params.busco_set}.BUSCO.txt {output}
         """
 
