@@ -365,7 +365,7 @@ rule assembly_busco:
     shell:
         """
         cd {params.assembly_dir}
-        busco -i {input} -o BUSCO -m genome -l {params.busco_set} -c {params.cpus} -f
+        busco -i {input} -o BUSCO -m genome -l {params.busco_set} -c {params.cpus} -f --limit 2
         cp {params.assembly_dir}/BUSCO/short_summary.specific.{params.busco_set}.BUSCO.txt {output}
         """
 
