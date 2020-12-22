@@ -139,7 +139,7 @@ rule assemble_genomes:
         # change dir to avoid snakemake locks of main pipeline
         cd {params.snakemake_dir}
         # run assembly pipeline
-        snakemake -s {params.genome_assembly_snakefile} --configfile {input.yml} {params.cluster_param} -j {params.jobs} --latency-wait 60 --restart-times 3 --jobscript {params.jobscript} --use-conda > {params.snakemake_dir}/assemble_genomes.out 2> {params.snakemake_dir}/assemble_genomes.err
+        snakemake -s {params.genome_assembly_snakefile} --configfile {input.yml} {params.cluster_param} -j {params.jobs} --latency-wait 60 --restart-times 3 --jobscript {params.jobscript} --use-conda -p --keep-going > {params.snakemake_dir}/assemble_genomes.out 2> {params.snakemake_dir}/assemble_genomes.err
         """
 
 rule prep_liftover:
@@ -440,7 +440,7 @@ rule maker_annotation:
     shell:
         """
         cd {params.annotation_dir}
-        snakemake -s {params.run_maker_in_chunks_snakefile} --configfile {input} {params.cluster_param} -j {params.jobs} --latency-wait 60 --restart-times 3 --jobscript {params.jobscript}
+        snakemake -s {params.run_maker_in_chunks_snakefile} --configfile {input} {params.cluster_param} -j {params.jobs} --latency-wait 60 --restart-times 3 --jobscript {params.jobscript} --keep-going -p
         """
 
 rule make_chunks_bed:
