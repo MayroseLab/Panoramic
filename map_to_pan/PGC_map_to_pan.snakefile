@@ -760,9 +760,11 @@ rule pan_genes_gff_to_bed:
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR
+    conda:
+        CONDA_ENV_DIR + '/bedops.yml'
     shell:
         """
-        awk '$3 == "mRNA" {{split($9,a,";"); split(a[1],b,"="); print $1"\t"$4"\t"$5"\t"b[2]}}' {input} | sort -k1,1 -k2,2n > {output}
+        awk '$3 == "mRNA"' {input} | gff2bed | cut -f1,2,3,4 |  sort -k1,1 -k2,2n > {output}
         """
 
 rule calculate_HQ_mRNA_cov:
