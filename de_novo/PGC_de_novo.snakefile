@@ -12,12 +12,10 @@ of the following general steps:
 6. Summarize and create PAV matrix
 """
 
-print(sys.argv)
 import os
 pipeline_dir = os.path.dirname(os.path.realpath(workflow.snakefile))
 utils_dir = os.path.dirname(pipeline_dir) + '/util'
 import sys
-print(sys.version)
 sys.path.append(utils_dir)
 from snakemakeUtils import *
 
@@ -34,7 +32,7 @@ print("#########################")
 
 # get configfile path
 i = sys.argv.index('--configfile')
-config_path = sys.argv[i+1]
+config_path = os.path.realpath(sys.argv[i+1])
 
 # assert required params are in config
 required = ['samples_info_file','hq_genomes_info_file','out_dir','reference_name',
@@ -89,9 +87,9 @@ onerror:
 #                RULES              |
 #------------------------------------
 
-localrules: all, prep_liftover_chunks_tsv, prep_annotation_chunks_tsv, prep_liftover_yaml, prep_annotation_yaml, maker_annotation
+localrules: all, prep_liftover_chunks_tsv, prep_annotation_chunks_tsv, prep_liftover_yaml, prep_annotation_yaml 
 
-rule all:
+rule all_de_novo:
     input:
         pav=config["out_dir"] + "/all_samples/pan_genome/pan_PAV.tsv",
         cnv=config["out_dir"] + "/all_samples/pan_genome/pan_CNV.tsv",
@@ -110,37 +108,12 @@ def get_hq_sample_proteins(wildcards):
 wildcard_constraints:
     sample="[^_]+"
 
-rule assemble_genomes:
-    """
-    Download reads, preprocess, assemble,
-    and scaffold all input genomes using
-    a dedicated pipeline.
-    """
-    input:
-        yml=config_path,
-        tsv=config['samples_info_file'],
-    output:
-        assembly_stats_tsv=config["out_dir"] + "/all_samples/stats/assembly_stats.tsv",
-        assemblies=expand(config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/ragtag.scaffolds.fasta", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()]),
-        agp=expand(config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/ragtag.scaffolds.agp", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()]),
-    params:
-        genome_assembly_snakefile=os.path.join(os.path.dirname(pipeline_dir), 'genome_assembly', 'genome_assembly.snakefile'),
-        queue=config['queue'],
-        jobs=config['max_jobs'],
-        cluster_param=cluster_param,
-        priority=config['priority'],
-        jobscript=utils_dir + '/jobscript.sh',
-        logs_dir=LOGS_DIR,
-        snakemake_dir=config["out_dir"]
-    conda:
-        CONDA_ENV_DIR + '/snakemake.yml'
-    shell:
-        """
-        # change dir to avoid snakemake locks of main pipeline
-        cd {params.snakemake_dir}
-        # run assembly pipeline
-        snakemake -s {params.genome_assembly_snakefile} --configfile {input.yml} {params.cluster_param} -j {params.jobs} --latency-wait 60 --restart-times 3 --jobscript {params.jobscript} --use-conda -p --keep-going > {params.snakemake_dir}/assemble_genomes.out 2> {params.snakemake_dir}/assemble_genomes.err
-        """
+"""
+Download reads, preprocess, assemble,
+and scaffold all input genomes using
+a dedicated pipeline.
+"""
+include: "../genome_assembly/genome_assembly.snakefile"
 
 rule prep_liftover:
     """

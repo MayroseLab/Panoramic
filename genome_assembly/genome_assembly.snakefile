@@ -14,6 +14,7 @@ The main steps are:
 import os
 pipeline_dir = os.path.dirname(os.path.realpath(workflow.snakefile))
 utils_dir = os.path.dirname(pipeline_dir) + '/util'
+genome_assembly_dir = os.path.dirname(pipeline_dir) + '/genome_assembly'
 import sys
 sys.path.append(utils_dir)
 from snakemakeUtils import *
@@ -55,7 +56,11 @@ localrules: all
 
 rule all:
     input:
-        config["out_dir"] + "/all_samples/stats/assembly_stats.tsv"
+        assembly_stats_tsv=config["out_dir"] + "/all_samples/stats/assembly_stats.tsv",
+        assemblies=expand(config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/ragtag.scaffolds.fasta", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()]),
+        r1=expand(config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}_1_clean_paired.fastq.gz", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()]),
+        r2=expand(config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}_2_clean_paired.fastq.gz", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()])
+
 
 def get_sample(wildcards):
     return config['samples_info'][wildcards.sample]['ena_ref']
@@ -444,7 +449,7 @@ rule collect_assembly_stats:
     output:
         config["out_dir"] + "/all_samples/stats/assembly_stats.tsv"
     params:
-        collect_script=os.path.join(pipeline_dir, 'genome_assembly',  'collect_stats.py'),
+        collect_script=os.path.join(genome_assembly_dir, 'collect_stats.py'),
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR,
