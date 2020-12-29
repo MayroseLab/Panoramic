@@ -17,9 +17,12 @@ with open(in_tsv) as f:
     if line == '' or line == '\n' or line.startswith('#'):
       continue
     fields = line.strip().split('\t')
-    sample, quast_report, busco_sum, ragoo_fasta, read_length_file = fields
+    sample, quast_report, busco_sum, ragoo_fasta, data_stats_file = fields
+    # get data stats
+    stats_df = pd.read_csv(data_stats_file, sep='\t', index_col = 0, names=[sample])
     # get quast stats
-    stats_df = pd.read_csv(quast_report, sep='\t', index_col = 0, names=[sample])  
+    quast_df = pd.read_csv(quast_report, sep='\t', index_col = 0, names=[sample])
+    stats_df = stats_df.append(quast_df)
     # get % complete BUSCOs
     with open(busco_sum) as f:
       for line in f:
@@ -44,12 +47,6 @@ with open(in_tsv) as f:
     html_quast_report = "file://" + quast_report.replace('.tsv','.html')  
     s = pd.Series([html_quast_report], name="QUAST report", index=[sample])
     stats_df = stats_df.append(s)
-    # get read length
-    with open(read_length_file) as frl:
-      read_length = frl.read().strip()
-    s = pd.Series([read_length], name="Read length (bp)", index=[sample])
-    stats_df = stats_df.append(s)
-
     columns.append(stats_df)
 
 if not columns:

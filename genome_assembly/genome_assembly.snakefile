@@ -396,22 +396,38 @@ rule assembly_quast:
         quast {input.contigs} -o {params.out_dir} -t {params.ppn}
         """
 
-rule get_read_length:
+rule get_data_stats:
     """
-    Find raw data read length for stats report
+    Calculate raw data and RPP stats
     """
     input:
-        config["out_dir"] + "/per_sample/{sample}/data/{ena_ref}_1.fastq.gz"
+        raw_r1=config["out_dir"] + "/per_sample/{sample}/data/{ena_ref}_1.fastq.gz",
+        raw_r2=config["out_dir"] + "/per_sample/{sample}/data/{ena_ref}_2.fastq.gz",
+        clean_r1_paired=config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}_1_clean_paired.fastq.gz",
+        clean_r2_paired=config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}_2_clean_paired.fastq.gz",
+        clean_r1_unpaired=config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}_1_clean_unpaired.fastq.gz",
+        clean_r2_unpaired=config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}_2_clean_paired.fastq.gz",
+        merged=config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}.extendedFrags.fastq.gz",
+        unmerged_r1=config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}.notCombined_1.fastq.gz",
+        unmerged_r2=config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}.notCombined_2.fastq.gz"
     output:
-        config["out_dir"] + "/per_sample/{sample}/data/{ena_ref}.read_length"
+        config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}.read_stats.tsv"
     params:
         queue=config['queue'],
         priority=config['priority'],
-        logs_dir=LOGS_DIR
+        logs_dir=LOGS_DIR,
+        ppn=2
     shell:
         """
         set +o pipefail;
-        zcat {input} | head -2 | tail -1 | wc | awk '{{print $3}}' > {output}
+        echo 1
+        zcat {input.raw_r1} | head -2 | tail -1 | awk '{{print "Read length\t"length($0)}}' > {output}
+        echo 2
+        zcat {input.raw_r1} {input.raw_r2} | sed -n '2~4p' | tr -d '\n' | wc | awk '{{print "Input bases\t"$3}}' >> {output}
+        echo 3
+        zcat {input.clean_r1_paired} {input.clean_r2_paired} {input.clean_r1_unpaired} {input.clean_r2_unpaired} | sed -n '2~4p' | tr -d '\n' | wc | awk '{{print "Clean bases\t"$3}}' >> {output}
+        echo 4
+        zcat {input.merged} | sed -n '2~4p' | tr -d '\n' | wc | awk '{{print "Bases in merged reads\t"$3}}' >> {output}
         """
 
 rule prep_for_collect_stats:
@@ -423,7 +439,7 @@ rule prep_for_collect_stats:
         quast=expand(config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/QUAST/report.tsv", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()]),
         busco=expand(config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/BUSCO/short_summary.BUSCO.txt", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()]),
         ragtag=expand(config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/ragtag.scaffolds.fasta", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()]),
-        read_length=expand(config["out_dir"] + "/per_sample/{sample}/data/{ena_ref}.read_length", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()])
+        data_stats=expand(config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}.read_stats.tsv", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()])
     output:
         config["out_dir"] + "/all_samples/stats/assembly_stats_files.tsv"
     params:
@@ -435,7 +451,7 @@ rule prep_for_collect_stats:
     shell:
         """
         set -e
-        paste <(echo {params.samples} | tr ' ' "\\n") <(echo {input.quast} | tr ' ' "\\n") <(echo {input.busco} | tr ' ' "\\n") <(echo {input.ragtag} | tr ' ' "\\n") <(echo {input.read_length} | tr ' ' "\\n") > {output}
+        paste <(echo {params.samples} | tr ' ' "\\n") <(echo {input.quast} | tr ' ' "\\n") <(echo {input.busco} | tr ' ' "\\n") <(echo {input.ragtag} | tr ' ' "\\n") <(echo {input.data_stats} | tr ' ' "\\n") > {output}
         exit 0
         """
 
