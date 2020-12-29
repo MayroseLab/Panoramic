@@ -97,7 +97,7 @@ localrules: all, prep_annotation_chunks_tsv, prep_annotation_yaml, calculate_n_c
 n_samples = len(config['samples_info'])
 last_sample = list(config['samples_info'].keys())[-1]
 last_sample_ena = config['samples_info'][last_sample]['ena_ref']
-rule all_amp_to_pan:
+rule all_map_to_pan:
     input:
         config["out_dir"] + "/all_samples/pan_genome/pan_PAV.tsv",
         config["out_dir"] + "/all_samples/pan_genome/pan_genome.fasta",
