@@ -77,11 +77,14 @@ rule fetch_ena_fast_download_script:
     output:
         config["out_dir"] + "/ena-fast-download.py"
     params:
+        ena_fast_download_url=ena_fast_download_url,
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR
-    run:
-        shell("wget %s -O {output}" % ena_fast_download_url)
+    shell:
+        """
+        wget {params.ena_fast_download_url} -O {output}
+        """
 
 rule download_fastq:
     """
