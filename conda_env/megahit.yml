@@ -1,0 +1,5 @@
+name: MEGAHIT
+channels:
+  - bioconda
+dependencies:
+  - megahit

@@ -17,8 +17,8 @@ merge_min_overlap: 10
 merge_max_mismatch_ratio: 0.2
 
 # Assembly
+assembler: spades
 min_length: 500
-min_coverage: 2
 busco_set: saccharomycetes_odb10
 
 # Annotation
@@ -27,9 +27,9 @@ repeats_library: Panoramic/test/data/repeats.fa
 transcripts: Panoramic/test/data/orf_coding_all_R64-2-1_20150113.fasta
 proteins: Panoramic/test/data/orf_trans_all_R64-2-1_20150113.fasta
 augustus_species: saccharomyces_cerevisiae_S288C
-min_protein: 50
 
 # Annotation filtration
+min_protein: 50
 max_aed: 0.4
 similarity_threshold_proteins: 0.95
 
@@ -44,3 +44,4 @@ priority:
 ppn:
 max_ram:
 max_jobs:
+cluster_wrapper:

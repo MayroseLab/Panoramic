@@ -1,0 +1,5 @@
+name: bedops
+channels:
+  - bioconda
+dependencies:
+  - bedops

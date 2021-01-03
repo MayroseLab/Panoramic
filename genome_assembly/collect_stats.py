@@ -17,9 +17,12 @@ with open(in_tsv) as f:
     if line == '' or line == '\n' or line.startswith('#'):
       continue
     fields = line.strip().split('\t')
-    sample, quast_report, busco_sum, ragoo_fasta, read_length_file = fields
+    sample, quast_report, busco_sum, ragoo_fasta, data_stats_file = fields
+    # get data stats
+    stats_df = pd.read_csv(data_stats_file, sep='\t', index_col = 0, names=[sample])
     # get quast stats
-    stats_df = pd.read_csv(quast_report, sep='\t', index_col = 0, names=[sample])  
+    quast_df = pd.read_csv(quast_report, sep='\t', index_col = 0, names=[sample])
+    stats_df = stats_df.append(quast_df)
     # get % complete BUSCOs
     with open(busco_sum) as f:
       for line in f:
@@ -44,14 +47,19 @@ with open(in_tsv) as f:
     html_quast_report = "file://" + quast_report.replace('.tsv','.html')  
     s = pd.Series([html_quast_report], name="QUAST report", index=[sample])
     stats_df = stats_df.append(s)
-    # get read length
-    with open(read_length_file) as frl:
-      read_length = frl.read().strip()
-    s = pd.Series([read_length], name="Read length (bp)", index=[sample])
-    stats_df = stats_df.append(s)
-
     columns.append(stats_df)
 
-stats_df = pd.concat(columns, axis=1)
-stats_df = stats_df.transpose()
-stats_df.to_csv(out_tsv, sep='\t')
+if not columns:
+  headers = ["Assembly","# contigs (>= 0 bp)","# contigs (>= 1000 bp)","# contigs (>= 5000 bp)",
+           "# contigs (>= 10000 bp) # contigs (>= 25000 bp)","# contigs (>= 50000 bp)",
+           "Total length (>= 0 bp)","Total length (>= 1000 bp)","Total length (>= 5000 bp)",
+           "Total length (>= 10000 bp)","Total length (>= 25000 bp)","Total length (>= 50000 bp)",
+           "# contigs","Largest contig","Total length","GC (%%)","N50","N75","L50","L75",
+           "# total reads","# left","# right Mapped (%%)","Properly paired (%%)","Avg. coverage depth",
+           "Coverage >= 1x (%%)","# N's per 100 kbp","%% Complete BUSCOs","%% unmapped (Chr0)",
+           "QUAST report","Read length (bp)"]
+  print('\t'.join(headers), file=out_tsv)
+else:
+  stats_df = pd.concat(columns, axis=1)
+  stats_df = stats_df.transpose()
+  stats_df.to_csv(out_tsv, sep='\t')
