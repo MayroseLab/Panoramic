@@ -11,7 +11,6 @@ of the following general steps:
    orthologs
 6. Summarize and create PAV matrix
 """
-
 import os
 pipeline_dir = os.path.dirname(os.path.realpath(workflow.snakefile))
 utils_dir = os.path.dirname(pipeline_dir) + '/util'
@@ -87,7 +86,7 @@ onerror:
 #                RULES              |
 #------------------------------------
 
-localrules: all, prep_liftover_chunks_tsv, prep_annotation_chunks_tsv, prep_liftover_yaml, prep_annotation_yaml 
+localrules: all_de_novo, prep_annotation_chunks_tsv, prep_annotation_yaml 
 
 rule all_de_novo:
     input:
