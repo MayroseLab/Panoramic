@@ -176,6 +176,7 @@ def interval_contains(interval_tree, start, end):
 def convert_feature_coords(feature, iv):
   feature.seqid = iv.data
   feature.start -= iv.begin
+  feature.start += 1
   feature.end -= iv.begin
   return feature
 
