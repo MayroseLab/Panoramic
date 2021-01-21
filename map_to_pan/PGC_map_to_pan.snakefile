@@ -103,6 +103,7 @@ rule all_map_to_pan:
         config["out_dir"] + "/all_samples/pan_genome/pan_genome.fasta",
         config["out_dir"] + "/all_samples/pan_genome/pan_proteome.fasta",
         config["out_dir"] + "/all_samples/pan_genome/pan_genes.gff",
+        config["out_dir"] + "/all_samples/pan_genome/pan_transcripts.fasta",
         config["out_dir"] + "/all_samples/stats/report.html"
 
 def get_sample(wildcards):
@@ -880,6 +881,27 @@ rule create_pan_PAV:
     shell:
         """
         python {params.create_PAV_matrix_script} {input.hq} {input.lq} {params.ref_name} {input.ref_genes} {input.names_sub} {output}
+        """
+
+rule create_pan_transcripts_fasta:
+    """
+    Create a fasta file with
+    pan-genome transcripts
+    """
+    input:
+        fasta=config["out_dir"] + "/all_samples/pan_genome/pan_genome.fasta",
+        gff=config["out_dir"] + "/all_samples/pan_genome/pan_genes.gff"
+    output:
+        config["out_dir"] + "/all_samples/pan_genome/pan_transcripts.fasta"
+    params:
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    conda:
+        CONDA_ENV_DIR + '/gffread.yml'
+    shell:
+        """
+        gffread {input.gff} -g {input.fasta} -w {output}
         """
 
 rule calculate_stepwise_stats:

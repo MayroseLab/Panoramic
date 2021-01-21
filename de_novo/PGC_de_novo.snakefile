@@ -50,7 +50,7 @@ def init():
                 delimiter='\t', key_name='sample', col_names=['ena_ref'])
     # load HQ genomes info file
     config['hq_info'] = SampleInfoReader.sample_table_reader(filename=config['hq_genomes_info_file'],
-                delimiter='\t', key_name='sample', col_names=['annotation_gff','proteins_fasta'])
+                delimiter='\t', key_name='sample', col_names=['annotation_gff', 'genome_fasta', 'proteins_fasta'])
     # convert '_' to '-' in sample names
     config['samples_info'] = {s.replace('_','-'): config['samples_info'][s] for s in config['samples_info']}
     config['hq_info'] = {s.replace('_','-'): config['hq_info'][s] for s in config['hq_info']}
@@ -93,6 +93,7 @@ rule all_de_novo:
         pav=config["out_dir"] + "/all_samples/pan_genome/pan_PAV.tsv",
         cnv=config["out_dir"] + "/all_samples/pan_genome/pan_CNV.tsv",
         prot=config["out_dir"] + "/all_samples/pan_genome/pan_proteins.fasta",
+        trans=config["out_dir"] + "/all_samples/pan_genome/pan_transcripts.fasta",
         report=config["out_dir"] + "/all_samples/stats/report.html"
 
 def get_sample(wildcards):
@@ -100,6 +101,9 @@ def get_sample(wildcards):
 
 def get_hq_sample_gff(wildcards):
     return config['hq_info'][wildcards.sample]['annotation_gff']
+
+def get_hq_sample_genome(wildcards):
+    return config['hq_info'][wildcards.sample]['genome_fasta']
 
 def get_hq_sample_proteins(wildcards):
     return config['hq_info'][wildcards.sample]['proteins_fasta']
@@ -306,6 +310,27 @@ rule get_liftover_proteins:
         python {params.filter_fasta_script} {input.gff} {input.fasta} {output} mRNA ID
         """
 
+rule get_liftover_transcripts:
+    """
+    Fetch the final set of filtered liftover transcripts
+    """
+    input:
+        gff=config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/gawn/05_results/genome_improve.gff3",
+        fasta=config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/gawn/05_results/liftover_transcripts.fasta"
+    output:
+        config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/gawn/05_results/liftover_transcripts_improve.fasta"
+    params:
+        filter_fasta_script=utils_dir + '/filter_fasta_by_gff.py',
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    conda:
+        CONDA_ENV_DIR + '/gffutils.yml'
+    shell:
+        """
+        python {params.filter_fasta_script} {input.gff} {input.fasta} {output} mRNA ID
+        """
+
 def calc_n_chunks(max_jobs, n_samples):
     if n_samples < 1:
         return 0
@@ -396,6 +421,7 @@ rule maker_annotation:
         config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/annotation.yml"
     output:
         config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.proteins.fasta",
+        config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.transcripts.fasta",
         config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.genes.gff",
         config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.all.gff"
     params:
@@ -501,6 +527,27 @@ rule get_novel_proteins:
         python {params.filter_fasta_script} {input.gff} {input.fasta} {output} mRNA ID
         """
 
+rule get_novel_transcripts:
+    """
+    Fetch transcripts selected in the novel gff
+    """
+    input:
+        fasta=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.transcripts.fasta",
+        gff=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.genes.chr.not_liftover.gff"
+    output:
+        config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.transcripts.not_liftover.fasta"
+    params:
+        filter_fasta_script=utils_dir + '/filter_fasta_by_gff.py',
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    conda:
+        CONDA_ENV_DIR + '/gffutils.yml'
+    shell:
+        """
+        python {params.filter_fasta_script} {input.gff} {input.fasta} {output} mRNA ID
+        """
+
 rule combine_liftover_with_novel_gff:
     """
     Combine liftover genes with novel genes
@@ -539,16 +586,36 @@ rule combine_liftover_with_novel_proteins:
         cat {input.liftover_fasta} {input.novel_fasta} > {output}
         """
 
+rule combine_liftover_with_novel_transcripts:
+    """
+    Combine liftover proteins with novel transcripts
+    """
+    input:
+        liftover_fasta=config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/gawn/05_results/liftover_transcripts_improve.fasta",
+        novel_fasta=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.transcripts.not_liftover.fasta"
+    output:
+        config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.transcripts.combine.fasta"
+    params:
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    shell:
+        """
+        cat {input.liftover_fasta} {input.novel_fasta} > {output}
+        """
+
 rule rename_genes:
     """
     Assign genes short, unique names (gff and fasta).
     Names consist of the genome name and a unique ID.
     """
     input:
-        fasta=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.proteins.combine.fasta",
+        prot=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.proteins.combine.fasta",
+        trans=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.transcripts.combine.fasta",
         gff=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.genes.chr.combine.gff"
     output:
-        fasta=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.proteins.combine.rename.fasta",
+        prot=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.proteins.combine.rename.fasta",
+        trans=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.transcripts.combine.rename.fasta",
         gff=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.genes.chr.combine.rename.gff",
         gff_map=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/gff.map",
     params:
@@ -562,8 +629,10 @@ rule rename_genes:
         maker_map_ids --prefix {wildcards.sample}_ --justify 1 --iterate 1 {input.gff} > {output.gff_map}
         cp {input.gff} {output.gff}
         map_gff_ids {output.gff_map} {output.gff}
-        cp {input.fasta} {output.fasta}
-        map_fasta_ids {output.gff_map} {output.fasta}
+        cp {input.prot} {output.prot}
+        map_fasta_ids {output.gff_map} {output.prot}
+        cp {input.trans} {output.trans}
+        map_fasta_ids {output.gff_map} {output.trans}
         """
 
 rule make_evidence_gffs:
@@ -670,9 +739,29 @@ rule filter_proteins:
     input:
         gff=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.genes.chr.combine.rename.filter.gff",
         fasta=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.proteins.combine.rename.fasta",
-        #fasta_map=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/fasta.map"
     output:
         config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.proteins_filter.fasta"
+    params:
+        filter_fasta_script=utils_dir + '/filter_fasta_by_gff.py',
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    conda:
+        CONDA_ENV_DIR + '/gffutils.yml'
+    shell:
+        """
+        python {params.filter_fasta_script} {input.gff} {input.fasta} {output} mRNA ID
+        """
+
+rule filter_transcripts:
+    """
+    Filter transcripts fasta according to filtered gff
+    """
+    input:
+        gff=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.genes.chr.combine.rename.filter.gff",
+        fasta=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.transcripts.combine.rename.fasta",
+    output:
+        config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.transcripts_filter.fasta"
     params:
         filter_fasta_script=utils_dir + '/filter_fasta_by_gff.py',
         queue=config['queue'],
@@ -864,6 +953,27 @@ rule get_hq_sample_proteins:
         python {params.filter_fasta_script} {input.gff} {input.fasta} {output} mRNA ID --min_len {params.min_protein}
         """
 
+rule get_hq_sample_transcripts:
+    """
+    Get HQ samples transcripts according
+    to filtered gff.
+    """
+    input:
+        fasta=get_hq_sample_genome,
+        gff=config["out_dir"] + "/HQ_samples/{sample}/{sample}_longest_trans.gff"
+    output:
+        config["out_dir"] + "/HQ_samples/{sample}/{sample}_longest_trans.fasta"
+    params:
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    conda:
+        CONDA_ENV_DIR + '/gffread.yml'
+    shell:
+        """
+        gffread {input.gff} -g {input.fasta} -w {output}
+        """
+
 rule get_ref_transcripts:
     """
     Filter reference transcripts according
@@ -965,19 +1075,58 @@ rule create_PAV_matrix:
         python {params.create_pav_mat_script} {input} {params.ref_name} {output.pav} {output.cnv} {output.mapping}
         """
 
-rule create_pan_proteins_fasta:
+rule create_all_proteins_fasta:
     """
-    Create a fasta file with one
-    representative protein sequence
-    per pan gene.
+    Aggregate all proteins from all samples
+    into one fasta file
+    """
+    input:
+        lq=expand(config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.proteins_filter_nodupl.fasta", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()]),
+        hq=expand(config["out_dir"] + "/all_samples/orthofinder/{sample}_HQ.fasta", sample=config['hq_info'].keys()),
+        ref=config["out_dir"] + "/all_samples/orthofinder/" + config['reference_name'] + '_REF.fasta'
+    output:
+        config["out_dir"] + "/all_samples/pan_genome/all_proteins.fasta"
+    params:
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    shell:
+        """
+        cat {input.ref} {input.hq} {input.lq} | tr ':' '_' > {output}
+        """
+
+rule create_all_transcripts_fasta:
+    """
+    Aggregate all transcripts from all samples
+    into one fasta file
+    """
+    input:
+        lq=expand(config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/maker.transcripts_filter.fasta", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()]),
+        hq=expand(config["out_dir"] + "/HQ_samples/{sample}/{sample}_longest_trans.fasta", sample=config['hq_info'].keys()),
+        ref=config["out_dir"] + "/all_samples/ref/" + config['reference_name'] + '_longest_trans.fasta'
+    output:
+        config["out_dir"] + "/all_samples/pan_genome/all_transcripts.fasta"
+    params:
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    shell:
+        """
+        cat {input.ref} {input.hq} {input.lq} | tr ':' '_' > {output}
+        """
+
+rule choose_representatives:
+    """
+    Select one representative gene
+    from each orthogroup
     """
     input:
         mapping=config["out_dir"] + "/all_samples/pan_genome/OG_to_gene_names.tsv",
         mwop=config["out_dir"] + "/all_samples/orthofinder/OrthoFinder/Results_orthofinder/Orthogroups_break_MWOP.tsv"
     output:
-        config["out_dir"] + "/all_samples/pan_genome/pan_proteins.fasta"
+        config["out_dir"] + "/all_samples/pan_genome/OG_to_gene_names_with_representatives.tsv"
     params:
-        create_pan_prot_fasta_script=os.path.join(pipeline_dir,"create_pan_proteins_fasta.py"),
+        choose_representatives_script=os.path.join(pipeline_dir,"choose_representatives.py"),
         og_seq_dir=config["out_dir"] + "/all_samples/orthofinder/OrthoFinder/Results_orthofinder/Orthogroup_Sequences",
         queue=config['queue'],
         priority=config['priority'],
@@ -986,7 +1135,53 @@ rule create_pan_proteins_fasta:
         CONDA_ENV_DIR + '/biopython.yml'
     shell:
         """
-        python {params.create_pan_prot_fasta_script} {params.og_seq_dir} {input.mapping} {input.mwop} {output}
+        python {params.choose_representatives_script} {params.og_seq_dir} {input.mapping} {input.mwop} {output}
+        """
+
+rule create_pan_proteins_fasta:
+    """
+    Create a fasta file with one
+    representative protein sequence
+    per pan gene.
+    """
+    input:
+        represent=config["out_dir"] + "/all_samples/pan_genome/OG_to_gene_names_with_representatives.tsv",
+        prot=config["out_dir"] + "/all_samples/pan_genome/all_proteins.fasta"
+    output:
+        config["out_dir"] + "/all_samples/pan_genome/pan_proteins.fasta"
+    params:
+        filter_script=utils_dir + '/filter_fasta_by_id_list.py',
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    conda:
+        CONDA_ENV_DIR + '/biopython.yml'
+    shell:
+        """
+        awk '{{print $4"\t"$2}}' {input.represent} | python {params.filter_script} {input.prot} > {output}
+        """  
+
+rule create_pan_transcripts_fasta:
+    """
+    Create a fasta file with one
+    representative transcript sequence
+    per pan gene.
+    """
+    input:
+        represent=config["out_dir"] + "/all_samples/pan_genome/OG_to_gene_names_with_representatives.tsv",
+        trans=config["out_dir"] + "/all_samples/pan_genome/all_transcripts.fasta"
+    output:
+        config["out_dir"] + "/all_samples/pan_genome/pan_transcripts.fasta"
+    params:
+        filter_script=utils_dir + '/filter_fasta_by_id_list.py',
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    conda:
+        CONDA_ENV_DIR + '/biopython.yml'
+    shell:
+        """
+        awk '{{print $4"\t"$2}}' {input.represent} | python {params.filter_script} {input.trans} > {output}
         """
 
 rule calculate_stepwise_stats:
