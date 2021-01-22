@@ -92,7 +92,7 @@ rule all_de_novo:
     input:
         pav=config["out_dir"] + "/all_samples/pan_genome/pan_PAV.tsv",
         cnv=config["out_dir"] + "/all_samples/pan_genome/pan_CNV.tsv",
-        prot=config["out_dir"] + "/all_samples/pan_genome/pan_proteins.fasta",
+        prot=config["out_dir"] + "/all_samples/pan_genome/pan_proteome.fasta",
         trans=config["out_dir"] + "/all_samples/pan_genome/pan_transcripts.fasta",
         report=config["out_dir"] + "/all_samples/stats/report.html"
 
@@ -1155,7 +1155,7 @@ rule choose_representatives:
         python {params.choose_representatives_script} {params.og_seq_dir} {input.mapping} {input.mwop} {output}
         """
 
-rule create_pan_proteins_fasta:
+rule create_pan_proteome.fasta:
     """
     Create a fasta file with one
     representative protein sequence
@@ -1165,7 +1165,7 @@ rule create_pan_proteins_fasta:
         represent=config["out_dir"] + "/all_samples/pan_genome/OG_to_gene_names_with_representatives.tsv",
         prot=config["out_dir"] + "/all_samples/pan_genome/all_proteins.fasta"
     output:
-        config["out_dir"] + "/all_samples/pan_genome/pan_proteins.fasta"
+        config["out_dir"] + "/all_samples/pan_genome/pan_proteome.fasta"
     params:
         filter_script=utils_dir + '/filter_fasta_by_id_list.py',
         queue=config['queue'],
@@ -1230,7 +1230,7 @@ rule create_report_notebook:
         pav_tsv=config["out_dir"] + "/all_samples/pan_genome/pan_PAV.tsv",
         stepwise_tsv=config["out_dir"] + "/all_samples/stats/stepwise_stats.tsv",
         assembly_stats_tsv=config["out_dir"] + "/all_samples/stats/assembly_stats.tsv",
-        proteins_fasta=config["out_dir"] + "/all_samples/pan_genome/pan_proteins.fasta"
+        proteins_fasta=config["out_dir"] + "/all_samples/pan_genome/pan_proteome.fasta"
     output:
         config["out_dir"] + "/all_samples/stats/report.ipynb"
     params:
