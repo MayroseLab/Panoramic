@@ -450,12 +450,10 @@ rule prep_for_collect_stats:
         n_samples=len(config['samples_info']),
         queue=config['queue'],
         priority=config['priority'],
-        logs_dir=LOGS_DIR,
+        logs_dir=LOGS_DIR
     shell:
         """
-        set -e
         paste <(echo {params.samples} | tr ' ' "\\n") <(echo {input.quast} | tr ' ' "\\n") <(echo {input.busco} | tr ' ' "\\n") <(echo {input.ragtag} | tr ' ' "\\n") <(echo {input.data_stats} | tr ' ' "\\n") > {output}
-        exit 0
         """
 
 rule collect_assembly_stats:

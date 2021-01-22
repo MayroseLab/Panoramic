@@ -116,7 +116,24 @@ Download reads, preprocess, assemble,
 and scaffold all input genomes using
 a dedicated pipeline.
 """
-include: "../genome_assembly/genome_assembly.snakefile"
+if len(config['samples_info']) > 0:
+    include: "../genome_assembly/genome_assembly.snakefile"
+else:
+    rule create_empty_assembly_stats:
+        """
+        In case only HQ samples are used,
+        create an empty stats table
+        """
+        output:
+            assembly_stats_tsv=config["out_dir"] + "/all_samples/stats/assembly_stats.tsv"
+        params:
+            queue=config['queue'],
+            priority=config['priority'],
+            logs_dir=LOGS_DIR,
+        shell:
+            """
+            echo -e "Assembly\t# contigs (>= 0 bp)\t# contigs (>= 1000 bp)\t# contigs (>= 5000 bp)\t# contigs (>= 10000 bp) # contigs (>= 25000 bp)\t# contigs (>= 50000 bp)\tTotal length (>= 0 bp)\tTotal length (>= 1000 bp)\tTotal length (>= 5000 bp)\tTotal length (>= 10000 bp)\tTotal length (>= 25000 bp)\tTotal length (>= 50000 bp)\t# contigs\tLargest contig\tTotal length\tGC (%%)\tN50\tN75\tL50\tL75\t# total reads\t# left\t# right Mapped (%%)\tProperly paired (%%)\tAvg. coverage depth\tCoverage >= 1x (%%)\t# N's per 100 kbp\t%% Complete BUSCOs\t%% unmapped (Chr0)\tQUAST report\tRead length (bp)" > {output}
+            """
 
 rule prep_liftover:
     """
