@@ -1061,12 +1061,13 @@ rule break_orthogroups_MWOP:
         ref_genome_name=config['reference_name'] + "_REF",
         queue=config['queue'],
         priority=config['priority'],
-        logs_dir=LOGS_DIR
+        logs_dir=LOGS_DIR,
+        ppn=config['ppn']
     conda:
         CONDA_ENV_DIR + '/break_orthogroups.yml'
     shell:
         """
-        python {params.mwop_script} {params.orthofinder_dir} bitscore --allow_gene_copies exclude_ref --ref_genome_name {params.ref_genome_name} {output}
+        python {params.mwop_script} {params.orthofinder_dir} bitscore --allow_gene_copies exclude_ref --ref_genome_name {params.ref_genome_name} {output} --cpus {params.ppn}
         """
 
 rule create_PAV_matrix:

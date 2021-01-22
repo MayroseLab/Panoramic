@@ -53,6 +53,7 @@ from ete3 import Tree
 from itertools import product, chain
 from collections import OrderedDict
 import argparse
+from multiprocessing import Pool
 
 def tidy_split(df, column, sep='|', keep=False):
   """
@@ -285,7 +286,7 @@ class HomologyCluster(nx.Graph):
     SQLite3 DB.
     """
     table_name = "blast_orthologs_bidirect"
-    df = pd.read_sql_query("SELECT * FROM %s WHERE orthogroup = '%s'" %(table_name, self.orthogroup), con)
+    df = pd.read_sql_query("SELECT * FROM %s WHERE orthogroup = '%s'" %(table_name, self.orthogroup), db_con)
     df.apply(lambda g: self.add_edge(g['prot1'], g['prot2'], weight=g['weight']), axis=1)
 
   def break_mwop(self, tree, allow_gene_copies="No"):
@@ -432,6 +433,29 @@ def create_orthofinder_line(graph, genomes_order):
       d[graph.nodes[node]['genome']].append(node)
     return '\t'.join([graph.orthogroup] + [', '.join(d[genome]) for genome in genomes_order])
 
+def process_orthogroup(line, db_path, genomes, gene_trees_dir, ref_genome_name, allow_gene_copies):
+  """
+  Reads an OrthoFinder orthogroup
+  line and process it - break OG
+  if needed and return one or more
+  processed OG lines
+  """
+  og = line.split('\t')[0]
+  print(og)
+  og_tree = os.path.join(gene_trees_dir,"%s_tree.txt" % og)
+  if os.path.isfile(og_tree):
+    hc = HomologyCluster(genomes, line, gene_tree=og_tree, ref_genome_name=ref_genome_name)
+  else:
+    hc = HomologyCluster(genomes, line)
+  if hc.has_paralogs:
+    con = sql.connect(db_path) 
+    hc.add_edges(con)
+    orthogroups = hc.break_mwop(tree, allow_gene_copies=allow_gene_copies)
+  else:
+    orthogroups = [hc]
+  new_og_lines = [create_orthofinder_line(og_break, genomes) for og_break in orthogroups if len(og_break) > 0]
+  return '\n'.join(new_og_lines)
+
 if __name__ == "__main__":
 
   parser = argparse.ArgumentParser()
@@ -441,6 +465,7 @@ if __name__ == "__main__":
   parser.add_argument('--ref_genome_name', default=None, help='Name of reference genome')
   parser.add_argument('orthogroups_out', help='Path to output TSV')
   parser.add_argument('--use_existing_db', default=False, action='store_true', help='Use previously constructed DB instead of constructing it')
+  parser.add_argument('--cpus', default=1, type=int, help='Number of CPUs to use')
   args = parser.parse_args()
   if args.allow_gene_copies == "exclude_ref":
     assert args.ref_genome_name, "Must specify --ref_genome_name when using --allow_gene_copies exclude_ref"
@@ -451,7 +476,7 @@ if __name__ == "__main__":
     print('Using existing DB %s' % db_path)
   else:
     db_path = create_orthology_db(args.orthofinder_dir, weight_field=args.weight_field)
-  con = sql.connect(db_path)
+  #con = sql.connect(db_path)
 
   # species tree
   tree_file = os.path.join(args.orthofinder_dir, "Species_Tree", 'SpeciesTree_rooted_node_labels.txt')
@@ -462,25 +487,10 @@ if __name__ == "__main__":
   gene_trees_dir = os.path.join(args.orthofinder_dir, 'Resolved_Gene_Trees')
   unassigned_file = os.path.join(args.orthofinder_dir, 'Orthogroups', 'Orthogroups_UnassignedGenes.tsv') # single-gene OGs
 
-  with open(orthogroups_file) as f1, open(unassigned_file) as f2, open(args.orthogroups_out, 'w') as fo:
+  with open(orthogroups_file) as f1, open(unassigned_file) as f2, open(args.orthogroups_out, 'w') as fo, Pool(args.cpus) as p:
     all_lines = f1.readlines() + f2.readlines()[1:]
     header = all_lines.pop(0).strip()
-    print(header, file=fo)
     genomes = header.split('\t')[1:]
-    for line in all_lines:
-      og = line.split('\t')[0]
-      print(og)
-      og_tree = os.path.join(gene_trees_dir,"%s_tree.txt" % og)
-      if os.path.isfile(og_tree):
-        hc = HomologyCluster(genomes, line, gene_tree=og_tree, ref_genome_name=args.ref_genome_name)
-      else:
-        hc = HomologyCluster(genomes, line)
-      if hc.has_paralogs:
-        hc.add_edges(con)
-        orthogroups = hc.break_mwop(tree, allow_gene_copies=args.allow_gene_copies)
-      else:
-        orthogroups = [hc]
-      for og_break in orthogroups:
-        if len(og_break) > 0:
-          og_break_line = create_orthofinder_line(og_break, genomes)
-          print(og_break_line, file=fo)
+    new_lines = p.starmap(process_orthogroup, [(line, db_path, genomes, gene_trees_dir, args.ref_genome_name, args.allow_gene_copies) for line in all_lines])
+    print(header, file=fo)
+    print('\n'.join(new_lines), file=fo)
