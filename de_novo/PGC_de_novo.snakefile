@@ -542,7 +542,7 @@ rule get_novel_genes:
         CONDA_ENV_DIR + '/index_gff.yml'
     shell:
         """
-        bedtools intersect -a {input.annotation_gff} -b {input.liftover_gff} -v | awk '$3 == "gene" || $3 == "mRNA" {{split($9,a,";"); split(a[1],b,"="); print b[2]}}' > {output.not_liftover_list}
+        bedtools intersect -a {input.annotation_gff} -b {input.liftover_gff} -v -f 0.1 | awk '$3 == "gene" || $3 == "mRNA" {{split($9,a,";"); split(a[1],b,"="); print b[2]}}' > {output.not_liftover_list}
         python {params.filter_script} {input.annotation_gff} {output.not_liftover_list} {output.not_liftover_gff}
         """
 
