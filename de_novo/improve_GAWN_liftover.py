@@ -9,7 +9,8 @@ Inputs:
 3) TransDecoder .gff3 output from the same run
 
 The script goes over the genes in the GAWN GFF3
-and discards genes with no high quality protein product. This includes:
+and discards genes that deviate from the min/max gene length,
+or that have no high quality protein product. This includes:
 a. best blastp match is to the ref protein with the same name
 b. match has % identity > min_identity
 c. 1 - max_ratio_diff < slen/qlen < 1 + max_ratio_diff
@@ -29,11 +30,13 @@ import itertools
 import numpy as np
 
 in_gff = sys.argv[1]
-blastp_res = sys.argv[2]
-transdec_gff = sys.argv[3]
-min_identity = int(sys.argv[4])
-max_ratio_diff = float(sys.argv[5])
-out_gff = sys.argv[6]
+min_len = int(sys.argv[2])
+max_len = int(sys.argv[3])
+blastp_res = sys.argv[4]
+transdec_gff = sys.argv[5]
+min_identity = int(sys.argv[6])
+max_ratio_diff = float(sys.argv[7])
+out_gff = sys.argv[8]
 
 db_path = "tmp_%s.sqlite3" % time()
 gff_db = gffutils.create_db(in_gff, db_path, force=False, merge_strategy="create_unique", verbose=True)
@@ -125,6 +128,9 @@ for gene in gff.features_of_type('gene'):
   gene_name = gene['Name'][0]
   print(gene['ID'][0])
   if gene_name not in genes:
+    continue
+  gene_len = gene.end - gene.start
+  if gene_len < min_len or gene_len > max_len:
     continue
   best_gene = genes[gene_name][0]['ID'][0]
   if gene['ID'][0] != best_gene:

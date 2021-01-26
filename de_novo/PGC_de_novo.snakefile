@@ -278,6 +278,27 @@ rule blast_liftover_proteins:
         blastp -query {input.liftover} -db {input.ref} -out {output} -max_target_seqs 1 -outfmt "6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore qlen slen" -num_threads {params.ppn}
         """
 
+# find min and max gene length in ref gff
+def min_max_gene_len(gff):
+    min_len = 999999
+    max_len = 0
+    with open(gff) as f:
+        for line in f:
+            if line.startswith('#'):
+                continue
+            fields = line.strip().split('\t')
+            if len(fields) != 9:
+                continue
+            if fields[2] == "gene":
+                gene_len = int(fields[4]) - int(fields[3])
+                if gene_len < min_len:
+                    min_len = gene_len
+                elif gene_len > max_len:
+                    max_len = gene_len
+    return min_len, max_len
+
+ref_min_gene_len, ref_max_gene_len = min_max_gene_len(config['reference_annotation'])
+        
 rule improve_liftover_result:
     """
     Remove low quality predictions
@@ -294,6 +315,8 @@ rule improve_liftover_result:
         config["out_dir"] + "/per_sample/{sample}/liftover_{ena_ref}/gawn/05_results/genome_improve.gff3"
     params:
         improve_script=os.path.join(pipeline_dir,"improve_GAWN_liftover.py"),
+        min_len=int(ref_min_gene_len*0.8),
+        max_len=int(ref_max_gene_len*1.2),
         min_identity=config['min_identity'],
         max_ratio_diff=config['max_ratio_diff'],
         queue=config['queue'],
@@ -303,7 +326,7 @@ rule improve_liftover_result:
         CONDA_ENV_DIR + '/gffutils.yml'
     shell:
         """
-        python {params.improve_script} {input.gff} {input.blastp_res} {input.transdecoder_gff} {params.min_identity} {params.max_ratio_diff} {output}
+        python {params.improve_script} {input.gff} {params.min_len} {params.max_len} {input.blastp_res} {input.transdecoder_gff} {params.min_identity} {params.max_ratio_diff} {output}
         """
 
 rule get_liftover_proteins:
@@ -1156,7 +1179,7 @@ rule choose_representatives:
         python {params.choose_representatives_script} {params.og_seq_dir} {input.mapping} {input.mwop} {output}
         """
 
-rule create_pan_proteome.fasta:
+rule create_pan_proteome_fasta:
     """
     Create a fasta file with one
     representative protein sequence
