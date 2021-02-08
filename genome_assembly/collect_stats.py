@@ -33,7 +33,7 @@ with open(in_tsv) as f:
     # calculate % unmapped from RG assembly (if exists
     if ragoo_fasta:
       total_len = 0
-      chr0_len = None
+      chr0_len = 0
       for rec in SeqIO.parse(ragoo_fasta,'fasta'):
         if rec.id == "Chr0_RagTag":
           chr0_len = len(rec.seq)
