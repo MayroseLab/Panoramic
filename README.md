@@ -3,3 +3,6 @@
 **Latest stable version:** v1.1.0  
 Panoramic is a package for constructing eukaryotic pan-genomes.  
 Please visit the [Panoramic wiki](https://github.com/MayroseLab/Panoramic/wiki) for all setup and usage documentation.
+### Publication
+Panoramic (v1.1) was published in MER. If you use it, please cite:  
+[Glick, L., & Mayrose, I. (2021). Panoramic: A package for constructing eukaryotic pan‐genomes. Molecular Ecology Resources](https://onlinelibrary.wiley.com/doi/abs/10.1111/1755-0998.13344?af=R)
