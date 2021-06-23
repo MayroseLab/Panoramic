@@ -1,0 +1,48 @@
+name: EVM-annotation
+
+# input/output
+input_genome: 
+out_dir: 
+
+# Repeat masking
+mask_genome: 1  # 1 - run EDTA, 0 - don't run
+reference_cds:
+
+# Liftover
+reference_liftover: 1   # 1- perform reference genes liftover, 0 - skip
+reference_gff:
+reference_fasta:
+liftover_weight:
+
+# Ab-initio prediction
+augustus_species: 
+glimmerhmm_species: 
+snap_species: 
+ab-initio_weight: 
+
+# Transcript evidence
+transcripts_fasta: 
+transcripts_weight: 
+
+# Protein evidence
+proteins_fasta:
+proteins_weight:
+
+# EVM partitioning
+segment_size: 5000000
+overlap_size: 20000
+
+# Split chimeras
+split_chimeras: 1       # 1 - run chimeraBuster, 0 -don't run
+chimeraBuster_dir:
+
+# Annotation filtration
+min_protein: 50
+max_AED: 0.4
+
+# Environment
+queue:
+priority: 0
+ppn:
+max_ram:
+max_jobs:
