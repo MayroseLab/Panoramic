@@ -18,13 +18,18 @@ else:
 mem = ''
 if "ram" in job_properties["params"]:
   mem = ',mem=%s' % job_properties["params"]['ram']
+# job name
 rule_name = job_properties["rule"]
-if 'sample' in job_properties["wildcards"]:
-  base = job_properties["wildcards"]['sample']
-elif 'chunk' in job_properties["wildcards"]:
-  base = job_properties["params"]['sample'] + "_" + job_properties["wildcards"]['chunk']
-else:
+pref = []
+if 'sample' in job_properties["params"]:
+  job_properties["wildcards"]['sample'] = job_properties["params"]['sample']
+for x in ['sample', 'chunk', 'CHR', 'partition']:
+  if x in job_properties["wildcards"]:
+    pref.append(job_properties["wildcards"][x])
+if not pref:
   base = "all_samples"
+else:
+  base = '_'.join(pref)
 queue = job_properties["params"]["queue"]
 priority = job_properties["params"]["priority"]
 logs_dir = job_properties["params"]["logs_dir"]
