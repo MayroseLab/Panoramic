@@ -1,0 +1,5 @@
+name: EDTA
+channels:
+  - bioconda
+dependencies:
+  - edta

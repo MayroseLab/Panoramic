@@ -1,0 +1,5 @@
+name: liftoff
+channels:
+  - bioconda
+dependencies:
+  - liftoff=1.6.1

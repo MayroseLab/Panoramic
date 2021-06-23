@@ -1,0 +1,5 @@
+name: SNAP
+channels:
+  - bioconda
+dependencies:
+  - snap=2013_11_29

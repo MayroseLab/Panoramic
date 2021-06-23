@@ -1,0 +1,7 @@
+name: EVM
+channels:
+  - bioconda
+  - conda-forge
+dependencies:
+  - evidencemodeler
+  - perl-db_file

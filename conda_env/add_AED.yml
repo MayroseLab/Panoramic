@@ -1,0 +1,8 @@
+name: add_AED
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - intervaltree=3.0.2
+  - gffutils=0.10.1
+  - pandas=1.1.4

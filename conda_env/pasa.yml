@@ -1,0 +1,7 @@
+name: PASA
+channels:
+  - bioconda
+dependencies:
+  - pasa=2.4.1
+  - blat=36
+  - transdecoder=5.5.0
