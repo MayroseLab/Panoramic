@@ -2,6 +2,7 @@ name: EVM-annotation
 
 # input/output
 input_genome: 
+sample_name: 
 out_dir: 
 
 # Repeat masking

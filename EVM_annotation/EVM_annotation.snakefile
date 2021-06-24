@@ -78,6 +78,7 @@ rule mask_repeats:
     output:
         os.path.join(config['out_dir'], os.path.basename(config['input_genome'])+'.mod.MAKER.masked')
     params:
+        sample=config['sample_name'],
         out_dir=config['out_dir'],
         queue=config['queue'],
         priority=config['priority'],
@@ -104,6 +105,7 @@ if config['reference_liftover'] == 1:
         output:
             os.path.join(config['out_dir'], 'liftover.gff3')
         params:
+            sample=config['sample_name'],
             queue=config['queue'],
             priority=config['priority'],
             ppn=config['ppn'],
@@ -122,6 +124,7 @@ else:
         output:
             os.path.join(config['out_dir'], 'liftover.gff3')
         params:
+            sample=config['sample_name'],
             queue=config['queue'],
             priority=config['priority'],
             logs_dir=LOGS_DIR
@@ -142,6 +145,7 @@ rule split_genome_to_chr:
     output:
         expand(os.path.join(config['out_dir'],'{CHR}','{CHR}.fa'), CHR=chr_list.keys())
     params:
+        sample=config['sample_name'],
         split_script = os.path.join(utils_dir, 'split_multifasta.py'),
         out_dir=config['out_dir'],
         queue=config['queue'],
@@ -160,6 +164,7 @@ rule run_augustus:
     output:
         os.path.join(config['out_dir'],'{CHR}','augustus.out')
     params:
+        sample=config['sample_name'],
         species=config['augustus_species'],
         queue=config['queue'],
         priority=config['priority'],
@@ -177,6 +182,7 @@ rule run_glimmerHmm:
     output:
         os.path.join(config['out_dir'],'{CHR}','glimmerHmm.out')
     params:
+        sample=config['sample_name'],
         species=config['glimmerhmm_species'],
         queue=config['queue'],
         priority=config['priority'],
@@ -195,6 +201,7 @@ rule run_snap:
     output:
         os.path.join(config['out_dir'],'{CHR}','snap.out')
     params:
+        sample=config['sample_name'],
         species=config['snap_species'],
         queue=config['queue'],
         priority=config['priority'],
@@ -215,6 +222,7 @@ if config['proteins_fasta']:
         output:
             os.path.join(config['out_dir'],'{CHR}','genomeThreader.out')
         params:
+            sample=config['sample_name'],
             queue=config['queue'],
             priority=config['priority'],
             logs_dir=LOGS_DIR,
@@ -232,6 +240,7 @@ else:
         output:
             os.path.join(config['out_dir'],'{CHR}','genomeThreader.out')
         params:
+            sample=config['sample_name'],
             queue=config['queue'],
             priority=config['priority'],
             logs_dir=LOGS_DIR,
@@ -253,6 +262,7 @@ if config['transcripts_fasta']:
         output:
             os.path.join(config['out_dir'], '{CHR}','alignAssembly.config')
         params:
+            sample=config['sample_name'],
             db_path=lambda wildcards: os.path.join(config['out_dir'], wildcards.CHR, 'pasa_db.sqlite'),
             queue=config['queue'],
             priority=config['priority'],
@@ -269,6 +279,7 @@ if config['transcripts_fasta']:
         output:
             os.path.join(config['out_dir'], '{CHR}', 'pasa_db.sqlite.pasa_assemblies.gff3')
         params:
+            sample=config['sample_name'],
             exec_dir=lambda wildcards: os.path.join(config['out_dir'], wildcards.CHR),
             queue=config['queue'],
             priority=config['priority'],
@@ -289,6 +300,7 @@ else:
         output:
             os.path.join(config['out_dir'], '{CHR}', 'pasa_db.sqlite.pasa_assemblies.gff3')
         params:
+            sample=config['sample_name'],
             queue=config['queue'],
             priority=config['priority'],
             logs_dir=LOGS_DIR,
@@ -312,6 +324,7 @@ rule combine_chromosomes:
         all_genomethreader=os.path.join(config['out_dir'],'genomeThreader.out'),
         all_pasa=os.path.join(config['out_dir'],'pasa_db.sqlite.pasa_assemblies_all.gff3')
     params:
+        sample=config['sample_name'],
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR
@@ -330,6 +343,7 @@ rule convert_augustus_to_EVM_gff3:
     output:
         os.path.join(config['out_dir'],'augustus.EVM.gff3')
     params:
+        sample=config['sample_name'],
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR
@@ -346,6 +360,7 @@ rule convert_snap_zff_to_gff3:
     output:
         os.path.join(config['out_dir'],'snap.gff3')
     params:
+        sample=config['sample_name'],
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR
@@ -362,6 +377,7 @@ rule convert_snap_gff3_to_EVM_gff3:
     output:
         os.path.join(config['out_dir'],'snap.EVM.gff3')
     params:
+        sample=config['sample_name'],
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR
@@ -378,6 +394,7 @@ rule convert_glimmerHmm_to_EVM_gff3:
     output:
         os.path.join(config['out_dir'],'glimmerHmm.EVM.gff3')
     params:
+        sample=config['sample_name'],
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR
@@ -394,6 +411,7 @@ rule convert_genomeThreader_to_EVM_gff3:
     output:
         os.path.join(config['out_dir'],'genomeThreader.EVM.gff3')
     params:
+        sample=config['sample_name'],
         convert_script=os.path.join(pipeline_dir, 'genomeThreader_to_evm_gff3.pl'),
         queue=config['queue'],
         priority=config['priority'],
@@ -419,6 +437,7 @@ rule collect_predictions:
     output:
         os.path.join(config['out_dir'],'all_predictions.EVM.gff3')
     params:
+        sample=config['sample_name'],
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR
@@ -431,6 +450,7 @@ rule create_weights_file:
     output:
         os.path.join(config['out_dir'],'weights.tsv')
     params:
+        sample=config['sample_name'],
         liftover_weight=config['liftover_weight'],
         ab_initio_weight=config['ab-initio_weight'],
         transcripts_weight=config['transcripts_weight'],
@@ -471,6 +491,7 @@ rule create_EVM_partitions_list:
     output:
         os.path.join(config['out_dir'],'EVM_patitions.list')
     params:
+        sample=config['sample_name'],
         partition_script=os.path.join(pipeline_dir, 'create_EVM_partitions_list.py'),
         segment_size=config['segment_size'],
         overlap_size=config['overlap_size'],
@@ -492,6 +513,7 @@ rule partition_genome:
     output:
         partitions_files(chr_list, config['out_dir'], os.path.basename(genome_fasta))
     params:
+        sample=config['sample_name'],
         partition_script=os.path.join(pipeline_dir, 'partition_fasta.py'),
         queue=config['queue'],
         priority=config['priority'],
@@ -510,6 +532,7 @@ rule partition_predictions:
     output:
         partitions_files(chr_list, config['out_dir'], 'all_predictions.EVM.gff3')
     params:
+        sample=config['sample_name'],
         partition_script=os.path.join(pipeline_dir, 'partition_gff.py'),
         queue=config['queue'],
         priority=config['priority'],
@@ -528,6 +551,7 @@ rule partition_PASA:
     output:
         partitions_files(chr_list, config['out_dir'], 'pasa_db.sqlite.pasa_assemblies_all.gff3')
     params:
+        sample=config['sample_name'],
         partition_script=os.path.join(pipeline_dir, 'partition_gff.py'),
         queue=config['queue'],
         priority=config['priority'],
@@ -552,6 +576,7 @@ rule run_EVM:
         evm_out=os.path.join(config['out_dir'],'{CHR}','{CHR}_{partition}','evm.out'),
         evm_log=os.path.join(config['out_dir'],'{CHR}','{CHR}_{partition}','evm.out.log')
     params:
+        sample=config['sample_name'],
         genome=os.path.basename(genome_fasta),
         pred='all_predictions.EVM.gff3',
         trans='pasa_db.sqlite.pasa_assemblies_all.gff3',
@@ -578,6 +603,7 @@ rule recombine_EVM_partitions:
     output:
         expand(os.path.join(config['out_dir'], '{CHR}', 'evm.out'), CHR=chr_list.keys())
     params:
+        sample=config['sample_name'],
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR
@@ -596,6 +622,7 @@ rule convert_EVM_to_gff3:
     output:
         os.path.join(config['out_dir'], '{CHR}', 'evm.out.gff3')
     params:
+        sample=config['sample_name'],
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR
@@ -612,6 +639,7 @@ rule combine_EVM_gffs:
     output:
         os.path.join(config['out_dir'], 'evm.out.gff3')
     params:
+        sample=config['sample_name'],
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR
@@ -633,6 +661,7 @@ rule detect_chimeras:
     output:
         os.path.join(config['out_dir'], 'chimeric_genes.list')
     params:
+        sample=config['sample_name'],
         chimeraBuster_dir=config['chimeraBuster_dir'],
         out_dir=config['out_dir'],
         queue=config['queue'],
@@ -655,6 +684,7 @@ rule correct_chimeras:
     output:
         evm_gff
     params:
+        sample=config['sample_name'],
         chimeraBuster_dir=config['chimeraBuster_dir'],
         out_dir=config['out_dir'],
         queue=config['queue'],
@@ -682,6 +712,7 @@ rule calculate_AED:
     output:
         os.path.join(config['out_dir'], 'EVM.AED.gff3')
     params:
+        sample=config['sample_name'],
         add_aed_script=os.path.join(pipeline_dir, 'add_AED_to_gff3.py'),
         queue=config['queue'],
         priority=config['priority'],
@@ -703,6 +734,7 @@ rule filter_annotation:
     output:
         os.path.join(config['out_dir'], 'EVM.filter.gff3')
     params:
+        sample=config['sample_name'],
         filter_script=os.path.join(pipeline_dir, 'filter_gff.py'),
         max_AED=config['max_AED'],
         min_prot=config['min_protein'],
@@ -728,6 +760,7 @@ rule extract_fasta_sequences:
         prot=os.path.join(config['out_dir'], 'EVM.filter.prot.fasta'),
         trans=os.path.join(config['out_dir'], 'EVM.filter.trans.fasta')
     params:
+        sample=config['sample_name'],
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR
