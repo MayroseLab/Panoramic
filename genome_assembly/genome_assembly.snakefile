@@ -106,8 +106,7 @@ rule download_fastq:
     shell:
         """
         # find ssh key in conda env
-        env=`grep -l aspera ./.snakemake/conda/*.yaml | xargs basename | sed 's/\.yaml//'`
-        ssh="./.snakemake/conda/$env/etc/asperaweb_id_dsa.openssh"
+        ssh="$CONDA_PREFIX/etc/asperaweb_id_dsa.openssh"
         # download (retry 3 times)
         n=0
         until [ "$n" -ge 3 ]
