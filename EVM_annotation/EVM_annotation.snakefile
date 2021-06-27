@@ -3,7 +3,7 @@ Use EVM to annotate a genome.
 The following steps are included:
 1. Mask TEs in the input genome using EDTA (optional)
 2. Liftover reference genes using Liftoff (optional)
-3. Run three ab-initio predictors:
+3. Run three ab-initio predictors (all optional):
    - Augustus
    - GlimmerHMM
    - SNAP
@@ -158,61 +158,102 @@ rule split_genome_to_chr:
         python {params.split_script} {input} {params.out_dir} True
         """
 
-rule run_augustus:
-    input:
-        os.path.join(config['out_dir'],'{CHR}','{CHR}.fa')
-    output:
-        os.path.join(config['out_dir'],'{CHR}','augustus.out')
-    params:
-        sample=config['sample_name'],
-        species=config['augustus_species'],
-        queue=config['queue'],
-        priority=config['priority'],
-        logs_dir=LOGS_DIR,
-    conda:
-        CONDA_ENV_DIR + '/augustus.yml'
-    shell:
-        """
-        augustus --gff3=on --species={params.species} {input} > {output}
-        """
+if config['augustus_species']:
+    rule run_augustus:
+        input:
+            os.path.join(config['out_dir'],'{CHR}','{CHR}.fa')
+        output:
+            os.path.join(config['out_dir'],'{CHR}','augustus.out')
+        params:
+            sample=config['sample_name'],
+            species=config['augustus_species'],
+            queue=config['queue'],
+            priority=config['priority'],
+            logs_dir=LOGS_DIR,
+        conda:
+            CONDA_ENV_DIR + '/augustus.yml'
+        shell:
+            """
+            augustus --gff3=on --species={params.species} {input} > {output}
+            """
+else:
+    rule skip_augustus:
+        output:
+            os.path.join(config['out_dir'],'augustus.EVM.gff3')
+        params:
+            sample=config['sample_name'],
+            queue=config['queue'],
+            priority=config['priority'],
+            logs_dir=LOGS_DIR,
+        shell:
+            """
+            touch {output}
+            """
 
-rule run_glimmerHmm:
-    input:
-        os.path.join(config['out_dir'],'{CHR}','{CHR}.fa')
-    output:
-        os.path.join(config['out_dir'],'{CHR}','glimmerHmm.out')
-    params:
-        sample=config['sample_name'],
-        species=config['glimmerhmm_species'],
-        queue=config['queue'],
-        priority=config['priority'],
-        logs_dir=LOGS_DIR,
-    conda:
-        CONDA_ENV_DIR + '/glimmerHmm.yml'
-    shell:
-        """
-        speciesDir="$CONDA_PREFIX/share/glimmerhmm/trained_dir/{params.species}/"
-        glimmerhmm {input} $speciesDir -o {output} -g
-        """
-
-rule run_snap:
-    input:
-        os.path.join(config['out_dir'],'{CHR}','{CHR}.fa')
-    output:
-        os.path.join(config['out_dir'],'{CHR}','snap.out')
-    params:
-        sample=config['sample_name'],
-        species=config['snap_species'],
-        queue=config['queue'],
-        priority=config['priority'],
-        logs_dir=LOGS_DIR,
-    conda:
-        CONDA_ENV_DIR + '/snap.yml'
-    shell:
-        """
-        speciesHmm="$CONDA_PREFIX/share/snap/HMM/{params.species}.hmm"
-        snap $speciesHmm {input} > {output}
-        """
+if config['glimmerhmm_species']:
+    rule run_glimmerHmm:
+        input:
+            os.path.join(config['out_dir'],'{CHR}','{CHR}.fa')
+        output:
+            os.path.join(config['out_dir'],'{CHR}','glimmerHmm.out')
+        params:
+            sample=config['sample_name'],
+            species=config['glimmerhmm_species'],
+            queue=config['queue'],
+            priority=config['priority'],
+            logs_dir=LOGS_DIR,
+        conda:
+            CONDA_ENV_DIR + '/glimmerHmm.yml'
+        shell:
+            """
+            speciesDir="$CONDA_PREFIX/share/glimmerhmm/trained_dir/{params.species}/"
+            glimmerhmm {input} $speciesDir -o {output} -g
+            """
+else:
+    rule skip_glimmerHmm:
+        output:
+            os.path.join(config['out_dir'],'glimmerHmm.EVM.gff3')
+        params:
+            sample=config['sample_name'],
+            queue=config['queue'],
+            priority=config['priority'],
+            logs_dir=LOGS_DIR,
+        shell:
+            """
+            touch {output}
+            """
+if config['snap_species']:
+    rule run_snap:
+        input:
+            os.path.join(config['out_dir'],'{CHR}','{CHR}.fa')
+        output:
+            os.path.join(config['out_dir'],'{CHR}','snap.out')
+        params:
+            sample=config['sample_name'],
+            species=config['snap_species'],
+            queue=config['queue'],
+            priority=config['priority'],
+            logs_dir=LOGS_DIR,
+        conda:
+            CONDA_ENV_DIR + '/snap.yml'
+        shell:
+            """
+            speciesHmm="$CONDA_PREFIX/share/snap/HMM/{params.species}.hmm"
+            snap $speciesHmm {input} > {output}
+            """
+else:
+    rule skip_snap:
+        output:
+            os.path.join(config['out_dir'],'snap.EVM.gff3')
+        params:
+            sample=config['sample_name'],
+            queue=config['queue'],
+            priority=config['priority'],
+            logs_dir=LOGS_DIR,
+        shell:
+            """
+            touch {output}
+            """
 
 if config['proteins_fasta']:
     rule run_genomeThreader:
