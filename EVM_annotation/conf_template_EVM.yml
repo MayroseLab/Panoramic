@@ -1,18 +1,19 @@
+# NOTE: if running the EVM pipeline as part of Panoramic, DO NOT modify values wrapped in <>
 name: EVM-annotation
 
 # input/output
-input_genome: 
-sample_name: 
-out_dir: 
+input_genome: <INPUT_GENOME>
+sample_name: <SAMPLE_NAME>
+out_dir: <OUT_DIR>
 
 # Repeat masking
 mask_genome: 1  # 1 - run EDTA, 0 - don't run
-reference_cds:
+reference_cds: <REFERENCE_CDS>
 
 # Liftover
-reference_liftover: 1   # 1- perform reference genes liftover, 0 - skip
-reference_gff:
-reference_fasta:
+reference_liftover: <REFERENCE_LIFTOVER>   # 1- perform reference genes liftover, 0 - skip
+reference_gff: <REFERENCE_GFF>
+reference_fasta: <REFERENCE_FASTA>
 liftover_weight:
 
 # Ab-initio prediction
@@ -22,11 +23,11 @@ snap_species:
 ab-initio_weight: 
 
 # Transcript evidence
-transcripts_fasta: 
+transcripts_fasta: <TRANSCRIPTS_FASTA>
 transcripts_weight: 
 
 # Protein evidence
-proteins_fasta:
+proteins_fasta: <PROTEINS_FASTA>
 proteins_weight:
 
 # EVM partitioning
@@ -39,11 +40,11 @@ chimeraBuster_dir:
 
 # Annotation filtration
 min_protein: 50
-max_AED: 0.4
+max_AED: 0.99
 
 # Environment
-queue:
-priority: 0
-ppn:
-max_ram:
-max_jobs:
+queue: <QUEUE>
+priority: <PRIORITY>
+ppn: <PPN>
+max_ram: <MAX_RAM>
+max_jobs: <MAX_JOBS>
