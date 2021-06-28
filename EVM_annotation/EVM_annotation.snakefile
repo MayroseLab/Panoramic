@@ -45,7 +45,7 @@ onerror:
 #                RULES              |
 #------------------------------------
 
-localrules: all
+localrules: all, skip_liftover, skip_augustus, skip_glimmerHmm, skip_snap, skip_genomeThreader, skip_PASA_assembly
 
 rule all:
     input:
@@ -179,7 +179,7 @@ if config['augustus_species']:
 else:
     rule skip_augustus:
         output:
-            os.path.join(config['out_dir'],'augustus.EVM.gff3')
+            os.path.join(config['out_dir'],'{CHR}','augustus.out')
         params:
             sample=config['sample_name'],
             queue=config['queue'],
@@ -212,7 +212,7 @@ if config['glimmerhmm_species']:
 else:
     rule skip_glimmerHmm:
         output:
-            os.path.join(config['out_dir'],'glimmerHmm.EVM.gff3')
+            os.path.join(config['out_dir'],'{CHR}','glimmerHmm.out')
         params:
             sample=config['sample_name'],
             queue=config['queue'],
@@ -222,6 +222,7 @@ else:
             """
             touch {output}
             """
+
 if config['snap_species']:
     rule run_snap:
         input:
@@ -244,7 +245,7 @@ if config['snap_species']:
 else:
     rule skip_snap:
         output:
-            os.path.join(config['out_dir'],'snap.EVM.gff3')
+            os.path.join(config['out_dir'],'{CHR}','snap.out')
         params:
             sample=config['sample_name'],
             queue=config['queue'],
