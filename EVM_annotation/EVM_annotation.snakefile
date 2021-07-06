@@ -89,7 +89,7 @@ rule mask_repeats:
     shell:
         """
         cd {params.out_dir}
-        EDTA.pl --genome {input.genome} --cds {input.cds} --anno 1 --sensitive --threads {params.ppn}
+        EDTA.pl --genome {input.genome} --cds {input.cds} --anno 1 --sensitive --threads {params.ppn} --force 1 || true
         """
 
 if config['reference_liftover'] == 1:
