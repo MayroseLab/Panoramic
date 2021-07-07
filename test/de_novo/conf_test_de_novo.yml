@@ -9,6 +9,8 @@ reference_name: S288C
 reference_genome: Panoramic/test/data/S288C_reference_sequence_R64-2-1_20150113.fsa
 reference_annotation: Panoramic/test/data/saccharomyces_cerevisiae_R64-2-1_20150113.gff
 reference_proteins: Panoramic/test/data/orf_trans_all_R64-2-1_20150113.fasta
+reference_cds: Panoramic/test/data/orf_coding_all_R64-2-1_20150113.fasta
+reference_transcripts: Panoramic/test/data/orf_coding_all_R64-2-1_20150113.fasta
 
 # Reads pre processing (RPP)
 trimming_modules: "SLIDINGWINDOW:5:15 MINLEN:40"
@@ -20,21 +22,13 @@ assembler: spades
 min_length: 500
 busco_set: saccharomycetes_odb10
 
-# GAWN liftover
-liftover_transcripts: Panoramic/test/data/orf_coding_all_R64-2-1_20150113.fasta
-min_identity: 95
-max_ratio_diff: 0.1
-
 # Annotation
-maker_load: ""
-repeats_library: Panoramic/test/data/repeats.fa
-additional_transcripts: Panoramic/test/data/orf_coding_all_R64-2-1_20150113.fasta
-proteins: Panoramic/test/data/orf_trans_all_R64-2-1_20150113.fasta
-augustus_species: saccharomyces_cerevisiae_S288C
+transcripts: Panoramic/test/data/orf_coding_all_R64-2-1_20150113.fasta   # all transcripts fasta files, separated by commas (including ref)
+proteins: Panoramic/test/data/orf_trans_all_R64-2-1_20150113.fasta      # all proteins fasta files, separated by commas (including ref)
+annotation_yml_template: Panoramic/test/EVM_annotation_template.yml
 
 # Annotation filtration
 min_protein: 50
-max_aed: 0.4
 
 # Environment
 queue:
