@@ -33,7 +33,7 @@ with open(partitions_list) as f:
   for line in f:
     partition_path = line.strip().split('\t')[3]
     partition_base = os.path.basename(partition_path)
-    chrom, coords = partition_base.split('_')
+    chrom, coords = partition_base.rsplit('_',1)
     start, end = [int(x) for x in coords.split('-')]
     if chrom not in partitions_dict:
       partitions_dict[chrom] = {}
