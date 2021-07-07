@@ -22,7 +22,10 @@ for rec in SeqIO.parse(genome_fasta, 'fasta'):
 with open(partitions_out, 'w') as fo:
   for chrom in sorted(chr_lens.keys()):
     chrom_dir = out_dir + '/' + chrom
-    partitions = ["%s-%s" %(start, min(start+segment_size-1, chr_lens[chrom])) for start in range(1, chr_lens[chrom], segment_size - overlap_size) if (min(start+segment_size-1, chr_lens[chrom]) - start) > overlap_size]
+    if chr_lens[chrom] <= overlap_size:
+        partitions = ['%s-%s' %(1,chr_lens[chrom])]
+    else:
+        partitions = ["%s-%s" %(start, min(start+segment_size-1, chr_lens[chrom])) for start in range(1, chr_lens[chrom], segment_size - overlap_size) if (min(start+segment_size-1, chr_lens[chrom]) - start) > overlap_size]
     for p in partitions:
       partition_dir = chrom_dir + '/' + "%s_%s" %(chrom, p)
       print('\t'.join([chrom, chrom_dir, 'Y', partition_dir]), file=fo)
