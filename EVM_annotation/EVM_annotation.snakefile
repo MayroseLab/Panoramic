@@ -49,9 +49,9 @@ localrules: all, skip_liftover, skip_augustus, skip_glimmerHmm, skip_snap, skip_
 
 rule all:
     input:
-        os.path.join(config['out_dir'], 'EVM.filter.gff3'),
-        prot=os.path.join(config['out_dir'], 'EVM.filter.prot.fasta'),
-        trans=os.path.join(config['out_dir'], 'EVM.filter.trans.fasta')
+        os.path.join(config['out_dir'], 'EVM.filter.rename.gff3'),
+        prot=os.path.join(config['out_dir'], 'EVM.filter.rename.prot.fasta'),
+        trans=os.path.join(config['out_dir'], 'EVM.filter.rename.trans.fasta')
 
 # determine chromosomes list and partitions
 chr_list = {}
@@ -63,7 +63,10 @@ with open(config['input_genome']) as f:
         else:
             chr_list[chr_name] += len(line.strip())
     for chr_name in chr_list:
-        chr_list[chr_name] = ["%s-%s" %(start, min(start+config['segment_size']-1, chr_list[chr_name])) for start in range(1, chr_list[chr_name], config['segment_size'] - config['overlap_size']) if (min(start+config['segment_size']-1, chr_list[chr_name]) - start) > config['overlap_size']]
+        if chr_list[chr_name] <= config['overlap_size']:
+            chr_list[chr_name] = ['%s-%s' %(1,chr_list[chr_name])]
+        else:
+            chr_list[chr_name] = ["%s-%s" %(start, min(start+config['segment_size']-1, chr_list[chr_name])) for start in range(1, chr_list[chr_name], config['segment_size'] - config['overlap_size']) if (min(start+config['segment_size']-1, chr_list[chr_name]) - start) > config['overlap_size']]
 
 
 if config['mask_genome'] == 1:
@@ -790,17 +793,36 @@ rule filter_annotation:
         python {params.filter_script} {input} {params.max_AED} {params.min_prot} > {output}
         """
 
+rule rename_features:
+    """
+    Add the sample name to IDs
+    of all features.
+    """
+    input:
+        os.path.join(config['out_dir'], 'EVM.filter.gff3')
+    output:
+        os.path.join(config['out_dir'], 'EVM.filter.rename.gff3')
+    params:
+        sample=config['sample_name'],
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    shell:
+        """
+        sed -e 's/ID=/ID={params.sample}_/' -e 's/Parent=/Parent={params.sample}_/' {input} > {output}
+        """
+
 rule extract_fasta_sequences:
     """
     Extract protein and transcript
     sequences as FASTA
     """
     input:
-        gff=os.path.join(config['out_dir'], 'EVM.filter.gff3'),
+        gff=os.path.join(config['out_dir'], 'EVM.filter.rename.gff3'),
         fasta=config['input_genome']
     output:
-        prot=os.path.join(config['out_dir'], 'EVM.filter.prot.fasta'),
-        trans=os.path.join(config['out_dir'], 'EVM.filter.trans.fasta')
+        prot=os.path.join(config['out_dir'], 'EVM.filter.rename.prot.fasta'),
+        trans=os.path.join(config['out_dir'], 'EVM.filter.rename.trans.fasta')
     params:
         sample=config['sample_name'],
         queue=config['queue'],
