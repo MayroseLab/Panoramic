@@ -9,6 +9,8 @@ reference_name:
 reference_genome:
 reference_proteins:
 reference_annotation:
+reference_cds:
+reference_transcripts:
 
 # Reads pre processing (RPP)
 trimming_modules: "SLIDINGWINDOW:5:15 MINLEN:40"
@@ -20,21 +22,13 @@ assembler: spades
 min_length: 500
 busco_set:
 
-# GAWN liftover
-liftover_transcripts:
-min_identity: 95
-max_ratio_diff: 0.1
-
 # annotation
-maker_load: ""
-repeats_library:
-additional_transcripts:
-proteins:
-augustus_species:
+transcripts:    # all transcripts fasta files, separated by commas (including ref)
+proteins:       # all proteins fasta files, separated by commas (including ref)
+annotation_yml_template:
 
 # Annotation filtration
 min_protein: 50
-max_aed: 0.4
 
 # Environment
 queue:
@@ -42,4 +36,4 @@ priority: 0
 ppn:
 max_ram:
 max_jobs:
-cluster_wrapper: ""
+cluster_wrapper:
