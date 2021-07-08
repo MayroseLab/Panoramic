@@ -260,10 +260,30 @@ else:
             """
 
 if config['proteins_fasta']:
+    rule copy_proteins:
+        """
+        Copy input proteins to avoid
+        clashing with other genomeThreader
+        runs.
+        """
+        input:
+            config['proteins_fasta']
+        output:
+            os.path.join(config['out_dir'],'{CHR}','proteins.fasta')
+        params:
+            sample=config['sample_name'],
+            queue=config['queue'],
+            priority=config['priority'],
+            logs_dir=LOGS_DIR,
+        shell:
+            """
+            cp {input} {output}
+            """
+
     rule run_genomeThreader:
         input:
             chrom=os.path.join(config['out_dir'],'{CHR}','{CHR}.fa'),
-            proteins=config['proteins_fasta']
+            proteins=os.path.join(config['out_dir'],'{CHR}','proteins.fasta')
         output:
             os.path.join(config['out_dir'],'{CHR}','genomeThreader.out')
         params:
