@@ -54,6 +54,7 @@ from itertools import product, chain
 from collections import OrderedDict
 import argparse
 from multiprocessing import Pool
+from datetime import datetime
 
 def tidy_split(df, column, sep='|', keep=False):
   """
@@ -112,7 +113,6 @@ def create_orthology_db(orthofinder_dir, weight_field='bitscore', overwrite=Fals
   cur = con.cursor()
 
   # Load Blast data
-  #cur.execute("CREATE TABLE blast (qseqid text, sseqid text, pident real, length	integer, mismatch integer, gapopen	integer, qstart integer, qend integer, sstart integer, send integer, evalue real, bitscore real)")
   blast_dir = os.path.join(orthofinder_dir, 'WorkingDirectory')
   blast_files = [os.path.join(blast_dir, f) for f in os.listdir(blast_dir) if f.startswith('Blast') and f.endswith('txt')]
   colnames = ['qseqid','sseqid','pident','length','mismatch','gapopen','qstart','qend','sstart','send','evalue','bitscore']
@@ -132,7 +132,7 @@ def create_orthology_db(orthofinder_dir, weight_field='bitscore', overwrite=Fals
     df = pd.DataFrame([[line.strip().split(': ', 2)[0] , line.strip().split(': ', 2)[1]] for line in f], columns=colnames)
     df['seqname'] = df['seqname'].str.replace('[^0-9a-zA-Z\-\.]+','_')
   df.to_sql('seqnames', con, if_exists='append', index=False)
-  cur.execute("CREATE TABLE blast_seqnames as SELECT b.*, s.* FROM (SELECT b.*, s.* FROM blast b INNER JOIN (SELECT seqid AS qseqid, seqname AS qseqname FROM seqnames) s ON b.qseqid = s.qseqid) b INNER JOIN (SELECT seqid AS sseqid, seqname AS sseqname FROM seqnames) s ON b.sseqid = s.sseqid")
+  cur.execute("CREATE VIEW blast_seqnames as SELECT b.*, s.* FROM (SELECT b.*, s.* FROM blast b INNER JOIN (SELECT seqid AS qseqid, seqname AS qseqname FROM seqnames) s ON b.qseqid = s.qseqid) b INNER JOIN (SELECT seqid AS sseqid, seqname AS sseqname FROM seqnames) s ON b.sseqid = s.sseqid")
 
   # Add genome names
   genome_ids_file = os.path.join(blast_dir, 'SpeciesIDs.txt')
@@ -140,7 +140,7 @@ def create_orthology_db(orthofinder_dir, weight_field='bitscore', overwrite=Fals
   df = pd.read_csv(genome_ids_file, sep=': ', header=None, names=colnames)
   df['genomename'] = df['genomename'].str.replace('[^0-9a-zA-Z\-\.]+','_')
   df.to_sql('genomenames', con, if_exists='append', index=False)
-  cur.execute("CREATE TABLE blast_seqnames_genomenames as SELECT b.*, s.* FROM (SELECT b.*, s.* FROM blast_seqnames b INNER JOIN (SELECT genomeid AS qgenomeid, genomename AS qgenomename FROM genomenames) s ON b.qgenomeid = s.qgenomeid) b INNER JOIN (SELECT genomeid AS sgenomeid, genomename AS sgenomename FROM genomenames) s ON b.sgenomeid = s.sgenomeid")
+  cur.execute("CREATE VIEW blast_seqnames_genomenames as SELECT b.*, s.* FROM (SELECT b.*, s.* FROM blast_seqnames b INNER JOIN (SELECT genomeid AS qgenomeid, genomename AS qgenomename FROM genomenames) s ON b.qgenomeid = s.qgenomeid) b INNER JOIN (SELECT genomeid AS sgenomeid, genomename AS sgenomename FROM genomenames) s ON b.sgenomeid = s.sgenomeid")
 
   # Load orthologs data
   orthologues_dir = os.path.join(orthofinder_dir, "Orthologues")
@@ -156,13 +156,16 @@ def create_orthology_db(orthofinder_dir, weight_field='bitscore', overwrite=Fals
     df_t['prot1'] = df_t['prot1'].str.replace('[^0-9a-zA-Z\-\.]+','_')
     df_t['prot2'] = df_t['prot2'].str.replace('[^0-9a-zA-Z\-\.]+','_')
     df_t.to_sql('orthologs', con, if_exists='append', index=False)
-
+ 
   # Take blast data for orthologs only
-  cur.execute("CREATE TABLE blast_orthologs AS SELECT b.*, o.* FROM blast_seqnames_genomenames b INNER JOIN orthologs o ON b.qgenomename LIKE o.prot1_genome || '%' AND b.qseqname = o.prot1 AND b.sgenomename LIKE o.prot2_genome || '%' AND b.sseqname = o.prot2")
+  cur.execute("CREATE VIEW blast_orthologs AS SELECT b.*, o.* FROM blast_seqnames_genomenames b INNER JOIN orthologs o ON b.qgenomename LIKE o.prot1_genome || '%' AND b.qseqname = o.prot1 AND b.sgenomename LIKE o.prot2_genome || '%' AND b.sseqname = o.prot2")
   # if there are multiple hits for the same proteins pair, choose the one with max weight_field
-  cur.execute("CREATE TABLE blast_orthologs_max_weight AS SELECT *, max(%s) AS max_weight FROM blast_orthologs GROUP BY qseqid, sseqid" % weight_field)
+  cur.execute("CREATE VIEW blast_orthologs_max_weight AS SELECT *, max(%s) AS max_weight FROM blast_orthologs GROUP BY qseqid, sseqid" % weight_field)
   # calculate mean % identity of prot1->prot2 and prot2->prot1 and create final table
   cur.execute("CREATE TABLE blast_orthologs_bidirect AS SELECT orthogroup, prot1, prot2, prot1_genome, prot2_genome, avg(max_weight) OVER (PARTITION BY min(prot1, prot2), max(prot1, prot2), min(prot1_genome,prot2_genome), max(prot1_genome,prot2_genome)) weight FROM blast_orthologs_max_weight;")
+  # index table
+  cur.execute("CREATE INDEX orthogroup ON blast_orthologs_bidirect (orthogroup);")
+ 
 
   # finalize
   cur.close()
@@ -286,7 +289,8 @@ class HomologyCluster(nx.Graph):
     SQLite3 DB.
     """
     table_name = "blast_orthologs_bidirect"
-    df = pd.read_sql_query("SELECT * FROM %s WHERE orthogroup = '%s'" %(table_name, self.orthogroup), db_con)
+    query = "SELECT * FROM %s WHERE orthogroup = '%s'" %(table_name, self.orthogroup)
+    df = pd.read_sql_query(query, db_con)
     df.apply(lambda g: self.add_edge(g['prot1'], g['prot2'], weight=g['weight']), axis=1)
 
   def break_mwop(self, tree, allow_gene_copies="No"):
@@ -441,18 +445,23 @@ def process_orthogroup(line, db_path, genomes, gene_trees_dir, ref_genome_name, 
   processed OG lines
   """
   og = line.split('\t')[0]
-  print(og)
   og_tree = os.path.join(gene_trees_dir,"%s_tree.txt" % og)
   if os.path.isfile(og_tree):
     hc = HomologyCluster(genomes, line, gene_tree=og_tree, ref_genome_name=ref_genome_name)
   else:
     hc = HomologyCluster(genomes, line)
+  print("%s\t%s\t%s\t%s" %(hc.orthogroup, hc.number_of_nodes(), 'Start', datetime.now().strftime("%H:%M:%S")))
   if hc.has_paralogs:
-    con = sql.connect(db_path) 
+    print('%s - connecting to DB...' %(og))
+    con = sql.connect(db_path)
+    print('%s - Adding edges...' %(og))
     hc.add_edges(con)
+    con.close()
+    print('%s - Breaking OG...' %(og))
     orthogroups = hc.break_mwop(tree, allow_gene_copies=allow_gene_copies)
   else:
     orthogroups = [hc]
+  print("%s\t%s\t%s\t%s" %(hc.orthogroup, hc.number_of_nodes(), 'Finish', datetime.now().strftime("%H:%M:%S")))
   new_og_lines = [create_orthofinder_line(og_break, genomes) for og_break in orthogroups if len(og_break) > 0]
   return '\n'.join(new_og_lines)
 
@@ -486,7 +495,7 @@ if __name__ == "__main__":
   orthogroups_file = os.path.join(args.orthofinder_dir, 'Orthogroups', 'Orthogroups.tsv')
   gene_trees_dir = os.path.join(args.orthofinder_dir, 'Resolved_Gene_Trees')
   unassigned_file = os.path.join(args.orthofinder_dir, 'Orthogroups', 'Orthogroups_UnassignedGenes.tsv') # single-gene OGs
-
+  print("Starting to process orthogroups")
   with open(orthogroups_file) as f1, open(unassigned_file) as f2, open(args.orthogroups_out, 'w') as fo, Pool(args.cpus) as p:
     all_lines = f1.readlines() + f2.readlines()[1:]
     header = all_lines.pop(0).strip()
