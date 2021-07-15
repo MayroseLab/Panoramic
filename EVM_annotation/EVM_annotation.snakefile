@@ -681,11 +681,11 @@ rule recombine_EVM_partitions:
 
 rule convert_EVM_to_gff3:
     input:
-        evm_done=os.path.join(config['out_dir'], '{CHR}', 'evm.out'),
+        evm_done=expand(os.path.join(config['out_dir'], '{CHR}', 'evm.out'), CHR=chr_list.keys()),
         partitions_list=os.path.join(config['out_dir'],'EVM_patitions.list'),
         genome=genome_fasta
     output:
-        os.path.join(config['out_dir'], '{CHR}', 'evm.out.gff3')
+        expand(os.path.join(config['out_dir'], '{CHR}', 'evm.out.gff3'), CHR=chr_list.keys())
     params:
         sample=config['sample_name'],
         queue=config['queue'],
