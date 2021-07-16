@@ -71,29 +71,55 @@ with open(config['input_genome']) as f:
 
 if config['mask_genome'] == 1:
     genome_fasta = os.path.join(config['out_dir'], os.path.basename(config['input_genome'])+'.mod.MAKER.masked')
+    if 'reference_cds' in config and config['reference_cds']:
+        ref_cds = config['reference_cds']
+    else:
+        ref_cds = None
 else:
     genome_fasta = config['input_genome']
+    ref_cds = None
 
-rule mask_repeats:
-    input:
-        genome=config['input_genome'],
-        cds=config['reference_cds']
-    output:
-        os.path.join(config['out_dir'], os.path.basename(config['input_genome'])+'.mod.MAKER.masked')
-    params:
-        sample=config['sample_name'],
-        out_dir=config['out_dir'],
-        queue=config['queue'],
-        priority=config['priority'],
-        ppn=config['ppn'],
-        logs_dir=LOGS_DIR
-    conda:
-        CONDA_ENV_DIR + '/edta.yml'
-    shell:
-        """
-        cd {params.out_dir}
-        EDTA.pl --genome {input.genome} --cds {input.cds} --anno 1 --sensitive --threads {params.ppn} --force 1 || true
-        """
+if ref_cds:
+    rule mask_repeats:
+        input:
+            genome=config['input_genome'],
+            cds=config['reference_cds']
+        output:
+            os.path.join(config['out_dir'], os.path.basename(config['input_genome'])+'.mod.MAKER.masked')
+        params:
+            sample=config['sample_name'],
+            out_dir=config['out_dir'],
+            queue=config['queue'],
+            priority=config['priority'],
+            ppn=config['ppn'],
+            logs_dir=LOGS_DIR
+        conda:
+            CONDA_ENV_DIR + '/edta.yml'
+        shell:
+            """
+            cd {params.out_dir}
+            EDTA.pl --genome {input.genome} --cds {input.cds} --anno 1 --sensitive --threads {params.ppn} --force 1 || true
+            """
+else:
+    rule mask_repeats:
+        input:
+            genome=config['input_genome'],
+        output:
+            os.path.join(config['out_dir'], os.path.basename(config['input_genome'])+'.mod.MAKER.masked')
+        params:
+            sample=config['sample_name'],
+            out_dir=config['out_dir'],
+            queue=config['queue'],
+            priority=config['priority'],
+            ppn=config['ppn'],
+            logs_dir=LOGS_DIR
+        conda:
+            CONDA_ENV_DIR + '/edta.yml'
+        shell:
+            """
+            cd {params.out_dir}
+            EDTA.pl --genome {input.genome} --anno 1 --sensitive --threads {params.ppn} --force 1 || true
+            """
 
 if config['reference_liftover'] == 1:
     rule reference_liftover:
