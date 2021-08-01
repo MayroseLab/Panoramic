@@ -22,15 +22,13 @@ min_length: 500
 busco_set:
 
 # Annotation
-maker_load: ""
-repeats_library:
+annotation_yml_template:
 transcripts:
 proteins:
-augustus_species:
+chunk_size:
 
 # Annotation filtration
 min_protein: 50
-max_aed: 0.4
 similarity_threshold_proteins: 0.95
 
 # gene loss detection

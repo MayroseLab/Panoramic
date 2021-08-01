@@ -42,7 +42,7 @@ config_path = os.path.realpath(sys.argv[i+1])
 required = ["samples_info_file","hq_genomes_info_file","out_dir","reference_name","reference_genome",
             "reference_annotation","reference_proteins","id_simplify_function","trimming_modules",
             "merge_min_overlap","merge_max_mismatch_ratio","assembler","min_length","busco_set",
-            "repeats_library","transcripts","proteins","augustus_species","min_protein","max_aed",
+            "transcripts","proteins","min_protein",
             "similarity_threshold_proteins","HQ_min_cov","LQ_min_cov","min_read_depth","ppn"]
 for r in required:
   assert (r in config and config[r]), "Required argument %s is missing or empty in configuration file %s" %(r,config_path)
@@ -67,9 +67,8 @@ init()
 config['samples_info'] = OrderedDict(config['samples_info'])
 LOGS_DIR = config['out_dir'] + "/logs"
 CONDA_ENV_DIR = os.path.dirname(pipeline_dir) + '/conda_env'
-annotation_pipeline_dir = os.path.dirname(pipeline_dir) + '/genome_annotation'
+annotation_pipeline_dir = os.path.dirname(pipeline_dir) + '/EVM_annotation'
 pan_genome_report_dir = os.path.dirname(pipeline_dir) + '/pan_genome_report'
-annotation_templates_dir = annotation_pipeline_dir + "/annotation_templates/annotation"
 if 'cluster_wrapper' in config and config['cluster_wrapper']:
     cluster_param = '--cluster \"%s\"' % config['cluster_wrapper']
 else:
@@ -281,64 +280,91 @@ rule iterative_map_to_pan_LQ:
          python {params.map_to_pan_script} {input.ref_genome} {input.ref_gff} {input.ref_proteins} {input.samples} {params.out_dir} --cpus {params.ppn} --min_len {params.min_len}
         """
 
-rule calculate_n_chunks:
+rule novel_to_chunks:
     """
-    Calculate the optimal number of
-    chunks to split the novel sequences
-    to, towards annotation.
+    Divide novel sequences to
+    chunks of concatenated
+    contigs
     """
     input:
         config["out_dir"] + "/all_samples/pan_genome/all_novel.fasta"
     output:
-        config["out_dir"] + "/all_samples/non_ref/chunks/calc_n_chunks.done"
+        fasta=config["out_dir"] + "/all_samples/pan_genome/all_novel_chunks.fasta",
+        bed=config["out_dir"] + "/all_samples/pan_genome/all_novel_chunks.fasta.chunks.bed"
     params:
-        max_jobs=config['max_jobs'] - 1,
-        logs_dir=LOGS_DIR
-    run:
-        # get total size
-        s = 0
-        with open(input[0]) as f:
-            for line in f:
-                if line.startswith('>'):
-                    continue
-                s += len(line.strip())
-        n_chunks =  min(s//100000, params.max_jobs)
-        with open(output[0], 'w') as fo:
-            print(n_chunks, file=fo)
+        chunks_script=utils_dir + '/fasta_to_chunks.py',
+        chunk_size=config['chunk_size'],
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR,
+    conda:
+        CONDA_ENV_DIR + '/biopython.yml'
+    shell:
+        """
+        python {params.chunks_script} {input} {output.fasta} {params.chunk_size}
+        """
 
-rule prep_annotation_chunks:
+
+rule aggregate_annotation_evidence:
     """
-    Divide non-ref contigs into chunks for efficient parallel analysis
+    Collect all transcript and protein sequences
+    into single files towards annotation
     """
-    input:
-        d=config["out_dir"] + "/all_samples/non_ref/chunks/calc_n_chunks.done",
-        fasta=config["out_dir"] + "/all_samples/pan_genome/all_novel.fasta"
     output:
-        config["out_dir"] + "/all_samples/non_ref/chunks/chunks.done"
+        trans=config["out_dir"] + "/all_samples/all_transcripts.fasta",
+        prot=config["out_dir"] + "/all_samples/all_proteins.fasta"
     params:
-        out_dir=config["out_dir"] + "/all_samples/non_ref/chunks",
+        trans_files=config['transcripts'].split(','),
+        prot_files=config['proteins'].split(','),
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR
-    conda:
-        CONDA_ENV_DIR + '/faSplit.yml'
     shell:
         """
-        n_chunks=`cat {input.d}`
-        faSplit sequence {input.fasta} $n_chunks {params.out_dir}/chunk
-        touch {output}
+        cat {params.trans_files} > {output.trans}
+        cat {params.prot_files} > {output.prot}
         """
 
-rule prep_annotation_chunks_tsv:
+rule prep_annotation_yaml:
     """
-    Prepare TSV config for liftover run
+    Prepare yml config for annotation
+    of the novel sequences
     """
     input:
-        config["out_dir"] + "/all_samples/non_ref/chunks/chunks.done"
+        novel=config["out_dir"] + "/all_samples/pan_genome/all_novel_chunks.fasta",
+        transcripts=config["out_dir"] + "/all_samples/all_transcripts.fasta",
+        proteins=config["out_dir"] + "/all_samples/all_proteins.fasta",
+        yml_template=config['annotation_yml_template']
     output:
-        config["out_dir"] + "/all_samples/non_ref/chunks/chunks.tsv"
+        config["out_dir"] + "/all_samples/annotation/annotation.yml"
     params:
-        chunks_dir=config["out_dir"] + "/all_samples/non_ref/chunks",
+        annotation_dir=config["out_dir"] + "/all_samples/annotation/",
+        queue=config['queue'],
+        priority=config['priority'],
+        ppn_=config['ppn'],
+        max_ram_=config['max_ram'],
+        max_jobs_=config['max_jobs']/len(config['samples_info']),
+        logs_dir=LOGS_DIR
+    shell:
+        """
+        sed -e 's@<INPUT_GENOME>@{input.novel}@' -e 's@<SAMPLE_NAME>@novel_sequences@' -e 's@<OUT_DIR>@{params.annotation_dir}@' -e 's@<REFERENCE_CDS>@@' -e 's@<REFERENCE_LIFTOVER>@0@' -e 's@<REFERENCE_GFF>@@' -e 's@<REFERENCE_FASTA>@@' -e 's@<TRANSCRIPTS_FASTA>@{input.transcripts}@' -e 's@<PROTEINS_FASTA>@{input.proteins}@' -e 's@<QUEUE>@{params.queue}@' -e 's@<PRIORITY>@{params.priority}@' -e 's@<PPN>@{params.ppn_}@' -e 's@<MAX_RAM>@{params.max_ram_}@' -e 's@<MAX_JOBS>@{params.max_jobs_}@' {input.yml_template} > {output}
+        """
+
+rule install_EVM_dependencies:
+    """
+    Use conda/mamba to install
+    all dependencies for the
+    annotation pipeline. These
+    will be used by all invocations
+    of the pipeline.
+    """
+    input:
+        config["out_dir"] + "/all_samples/annotation/annotation.yml"
+    output:
+        config["out_dir"] + '/EVM_dependencies.done'
+    params:
+        EVM_annotation_snakefile=annotation_pipeline_dir + '/EVM_annotation.snakefile',
+        out_dir=config['out_dir'],
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR
@@ -346,161 +372,90 @@ rule prep_annotation_chunks_tsv:
         CONDA_ENV_DIR + '/snakemake.yml'
     shell:
         """
-        echo "chunk\tpath" > {output}
-        realpath {params.chunks_dir}/*.fa | awk '{{n=split($0,a,"/"); sub(".yml","",a[n]); print a[n]"\t"$0}}' >> {output}
+        cd {params.out_dir}
+        snakemake -s {params.EVM_annotation_snakefile} --configfile {input} -j 1 --use-conda --conda-create-envs-only
+        touch {output}
         """
 
-rule prep_annotation_yaml:
+rule EVM_annotation:
     """
-    Prepare yml config for annotation run
-    """
-    input:
-        chunks_tsv=config["out_dir"] + "/all_samples/non_ref/chunks/chunks.tsv"
-    output:
-        config["out_dir"] + "/all_samples/annotation/annotation.yml"
-    params:
-        annotation_dir=config["out_dir"] + "/all_samples/annotation",
-        templates_dir=annotation_templates_dir,
-        transcripts=config['transcripts'],
-        proteins=config['proteins'],
-        repeats_library=config['repeats_library'],
-        augustus_species=config['augustus_species'],
-        min_protein=config['min_protein'],
-        maker_load=config['maker_load'],
-        queue=config['queue'],
-        priority=config['priority'],
-        logs_dir=LOGS_DIR
-    shell:
-        """
-        echo "name: MAKER_wrapper" >> {output}
-        echo "chunks_info_file: {input.chunks_tsv}" >> {output}
-        echo "out_dir: {params.annotation_dir}" >> {output}
-        echo "config_templates: {params.templates_dir}" >> {output}
-        echo "queue: {params.queue}" >> {output}
-        echo "priority: {params.priority}" >> {output}
-        echo "sample: non_ref_contigs" >> {output}
-        echo "logs_dir: {params.logs_dir}" >> {output}
-        echo "maker_load: {params.maker_load}" >> {output}
-        echo config_kv_pairs: est={params.transcripts} protein={params.proteins} rmlib={params.repeats_library} augustus_species={params.augustus_species} min_protein={params.min_protein} >> {output}
-        """
-
-rule maker_annotation:
-    """
-    Run MAKER on non-ref contigs
+    Run the EVM annotation pipeline
+    on novel sequences, including
+    ab-initio and evidence-based annotation.
     """
     input:
-        config["out_dir"] + "/all_samples/annotation/annotation.yml"
+        conf=config["out_dir"] + "/all_samples/annotation/annotation.yml",
+        dep=config["out_dir"] + '/EVM_dependencies.done'
     output:
-        config["out_dir"] + "/all_samples/annotation/maker.proteins.fasta",
-        config["out_dir"] + "/all_samples/annotation/maker.genes.gff"
+        config["out_dir"] + "/all_samples/annotation/EVM.filter.rename.gff3",
+        config["out_dir"] + "/all_samples/annotation/EVM.filter.rename.prot.fasta",
+        config["out_dir"] + "/all_samples/annotation/EVM.filter.rename.trans.fasta"
     params:
-        run_maker_in_chunks_snakefile=annotation_pipeline_dir + '/run_MAKER_in_chunks.snakefile',
+        EVM_annotation_snakefile=annotation_pipeline_dir + '/EVM_annotation.snakefile',
         queue=config['queue'],
-        jobs=config['max_jobs'],
+        jobs=int(config['max_jobs']/len(config['samples_info'])),
         annotation_dir=config["out_dir"] + "/all_samples/annotation",
         cluster_param=cluster_param,
         priority=config['priority'],
         jobscript=utils_dir + '/jobscript.sh',
+        dependencies_dir=config['out_dir'] + '/.snakemake/conda',
         logs_dir=LOGS_DIR
     conda:
         CONDA_ENV_DIR + '/snakemake.yml'
     shell:
         """
         cd {params.annotation_dir}
-        snakemake -s {params.run_maker_in_chunks_snakefile} --configfile {input} {params.cluster_param} -j {params.jobs} --latency-wait 60 --restart-times 3 --jobscript {params.jobscript} --keep-going -p
+        snakemake -s {params.EVM_annotation_snakefile} --configfile {input.conf} {params.cluster_param} -j {params.jobs} --latency-wait 60 --restart-times 3 --jobscript {params.jobscript} --keep-going -p --use-conda --ignore-incomplete --conda-prefix {params.dependencies_dir}
         """
 
-rule rename_genes:
+rule transform_coordinates:
     """
-    Assign genes short, unique names (gff and fasta).
-    Names consist of the genome name and a unique ID.
-    """
-    input:
-        fasta=config["out_dir"] + "/all_samples/annotation/maker.proteins.fasta",
-        gff=config["out_dir"] + "/all_samples/annotation/maker.genes.gff"
-    output:
-        fasta=config["out_dir"] + "/all_samples/annotation/maker.proteins.rename.fasta",
-        gff=config["out_dir"] + "/all_samples/annotation/maker.genes.rename.gff",
-        gff_map=config["out_dir"] + "/all_samples/annotation/gff.map"
-    params:
-        maker_load=config['maker_load'],
-        out_dir=config["out_dir"] + "/all_samples/annotation/",
-        queue=config['queue'],
-        priority=config['priority'],
-        logs_dir=LOGS_DIR
-    shell:
-        """
-        {params.maker_load}
-        maker_map_ids --prefix PanGene_ --justify 1 --iterate 1 {input.gff} > {output.gff_map}
-        cp {input.gff} {output.gff}
-        map_gff_ids {output.gff_map} {output.gff}
-        cp {input.fasta} {output.fasta}
-        map_fasta_ids {output.gff_map} {output.fasta}
-        """
-
-rule filter_annotation:
-    """
-    Remove unreliable genes from gff,
-    having AED > X (set by user)
+    Transform annotation GFF from chunk
+    coordinates to original novel contig
+    coordinates.
+    This also discards gene models spanning
+    multiple concatenated contigs.
     """
     input:
-        gff=config["out_dir"] + "/all_samples/annotation/maker.genes.rename.gff"
+        gff=config["out_dir"] + "/all_samples/annotation/EVM.filter.rename.gff3",
+        bed=config["out_dir"] + "/all_samples/pan_genome/all_novel_chunks.fasta.chunks.bed"
     output:
-        lst=config["out_dir"] + "/all_samples/annotation/maker.genes.rename.filter.list",
-        gff=config["out_dir"] + "/all_samples/annotation/maker.genes.rename.filter.gff"
+        config["out_dir"] + "/all_samples/annotation/EVM.filter.rename.transform.gff3"
     params:
-        max_aed=config['max_aed'],
-        filter_gff_script=utils_dir + '/filter_gff_by_id_list.py',
-        queue=config['queue'],
-        priority=config['priority'],
-        logs_dir=LOGS_DIR
-    shell:
-        """
-        awk '{{split($9,a,";"); split(a[1],b,"="); split(a[2],c,"="); split(a[5],d,"=")}} $3 == "mRNA" && d[2] <= {params.max_aed} {{print(b[2]"\\n"c[2])}}' {input.gff} > {output.lst}
-        python {params.filter_gff_script} {input.gff} {output.lst} {output.gff}
-        """
-
-rule filter_proteins:
-    """
-    Filter proteins fasta according to filtered gff
-    """
-    input:
-        gff=config["out_dir"] + "/all_samples/annotation/maker.genes.rename.filter.gff",
-        fasta=config["out_dir"] + "/all_samples/annotation/maker.proteins.rename.fasta"
-    output:
-        config["out_dir"] + "/all_samples/annotation/maker.proteins.rename.filter.fasta"
-    params:
-        filter_fasta_script=utils_dir + '/filter_fasta_by_gff.py',
+        transform_script=utils_dir + '/transform_gff_chunk_coordinates.py',
+        jobscript=utils_dir + '/jobscript.sh',
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR
     conda:
+        CONDA_ENV_DIR + '/iterative_map_to_pan.yml'
+    shell:
+        """
+        python {params.transform_script} {input.gff} {input.bed} {output}
+        """
+
+rule match_proteins:
+    """
+    Remove proteins discarded
+    during coordinate transformation
+    """
+    input:
+        prot=config["out_dir"] + "/all_samples/annotation/EVM.filter.rename.prot.fasta",
+        gff=config["out_dir"] + "/all_samples/annotation/EVM.filter.rename.transform.gff3"
+    output:
+        config["out_dir"] + "/all_samples/annotation/EVM.filter.rename.prot.no_conc.fasta"
+    params:
+        filter_fasta_script=utils_dir + '/filter_fasta_by_gff.py',
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR,
+    conda:
         CONDA_ENV_DIR + '/gffutils.yml'
     shell:
         """
-        python {params.filter_fasta_script} {input.gff} {input.fasta} {output} mRNA ID
+        python {params.filter_fasta_script} {input.gff} {input.prot} {output} mRNA ID 
         """
 
-rule prevent_duplicate_names:
-    """
-    If for any reason the filtered
-    proteins contain duplicate names,
-    prevent this by renaming. This
-    helps prevent problems in next steps
-    """
-    input:
-        config["out_dir"] + "/all_samples/annotation/maker.proteins.rename.filter.fasta"
-    output:
-        config["out_dir"] + "/all_samples/annotation/maker.proteins.rename.filter.no_dupl.fasta"
-    params:
-        dupl_script=utils_dir + '/prevent_duplicate_names.py',
-        queue=config['queue'],
-        priority=config['priority'],
-        logs_dir=LOGS_DIR
-    shell:
-        """
-        python {params.dupl_script} {input} {output}
-        """
 
 rule remove_redundant_proteins:
     """
@@ -509,9 +464,9 @@ rule remove_redundant_proteins:
     longest sequence from each cluster.
     """
     input:
-        config["out_dir"] + "/all_samples/annotation/maker.proteins.rename.filter.no_dupl.fasta"
+        config["out_dir"] + "/all_samples/annotation/EVM.filter.rename.prot.no_conc.fasta"
     output:
-        config["out_dir"] + "/all_samples/annotation/maker.proteins.rename.filter.no_dupl.no_redun.fasta"
+        config["out_dir"] + "/all_samples/annotation/EVM.filter.rename.prot.no_redun.fasta"
     params:
         similarity_threshold=config['similarity_threshold_proteins'],
         queue=config['queue'],
@@ -532,11 +487,11 @@ rule match_gff:
     fasta after all filtrations.
     """
     input:
-        prot=config["out_dir"] + "/all_samples/annotation/maker.proteins.rename.filter.no_dupl.no_redun.fasta",
-        gff=config["out_dir"] + "/all_samples/annotation/maker.genes.rename.filter.gff"
+        prot=config["out_dir"] + "/all_samples/annotation/EVM.filter.rename.prot.no_redun.fasta",
+        gff=config["out_dir"] + "/all_samples/annotation/EVM.filter.rename.transform.gff3"
     output:
-        gff=config["out_dir"] + "/all_samples/annotation/maker.genes.rename.filter.no_dupl.no_redun.gff",
-        filter_list=config["out_dir"] + "/all_samples/annotation/maker.genes.rename.filter.no_dupl.no_redun.list"
+        gff=config["out_dir"] + "/all_samples/annotation/EVM.filter.rename.no_redun.gff3",
+        filter_list=config["out_dir"] + "/all_samples/annotation/EVM.filter.rename.no_redun.list"
     params:
         filter_gff_script=utils_dir + '/filter_gff_by_id_list.py',
         queue=config['queue'],
@@ -544,9 +499,35 @@ rule match_gff:
         logs_dir=LOGS_DIR
     shell:
         """
-        grep '>' {input.prot} | sed 's/>\(.*\)-R.*/\\1/' > {output.filter_list}
-        grep '>' {input.prot} | sed 's/>\(.*-R[1-9]*\).*/\\1/' >> {output.filter_list}
+        grep '>' {input.prot} | tr -d '>' | awk '{{print $1}}' > {output.filter_list}
+        grep '>' {input.prot} | tr -d '>' | awk '{{print $1}}' | sed 's/novel_sequences_evm.model/novel_sequences_evm.TU/' >> {output.filter_list}
         python {params.filter_gff_script} {input.gff} {output.filter_list} {output.gff}
+        """
+
+rule rename_pan_genes:
+    """
+    Assign PanGene names to
+    gene models in novel sequences
+    """
+    input:
+        prot=config["out_dir"] + "/all_samples/annotation/EVM.filter.rename.prot.no_redun.fasta",
+        gff=config["out_dir"] + "/all_samples/annotation/EVM.filter.rename.no_redun.gff3"
+    output:
+        prot=config["out_dir"] + "/all_samples/annotation/EVM.filter.rename.prot.no_redun.PanGene.fasta",
+        gff=config["out_dir"] + "/all_samples/annotation/EVM.filter.rename.no_redun.PanGene.gff3",
+        id_map=config["out_dir"] + "/all_samples/annotation/EVM.filter.rename.no_redun.PanGene.gff3.id_map.tsv"
+    params:
+        rename_gff_script=utils_dir + '/rename_gff_features.py',
+        rename_fasta_script=utils_dir + '/rename_fasta_records.py',
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    conda:
+        CONDA_ENV_DIR + '/gffutils.yml'
+    shell:
+        """
+        python {params.rename_gff_script} {input.gff} {output.gff} PanGene
+        python {params.rename_fasta_script} {input.prot} {output.id_map} {output.prot}
         """
 
 rule create_pan_proteome:
@@ -554,7 +535,7 @@ rule create_pan_proteome:
     Create pan genome proteins fasta
     """
     input:
-        non_ref_proteins=config["out_dir"] + "/all_samples/annotation/maker.proteins.rename.filter.no_dupl.no_redun.fasta",
+        non_ref_proteins=config["out_dir"] + "/all_samples/annotation/EVM.filter.rename.prot.no_redun.PanGene.fasta",
         ref_plus_hq_proteins=config["out_dir"] + "/HQ_samples/HQ_pan/pan_proteins_no_alt_splicing.fasta"
     output:
         pan_proteome=config["out_dir"] + "/all_samples/pan_genome/pan_proteome.fasta"
@@ -572,7 +553,7 @@ rule create_pan_annotation:
     Create pan genome annotation gff
     """
     input:
-        non_ref_gff=config["out_dir"] + "/all_samples/annotation/maker.genes.rename.filter.no_dupl.no_redun.gff",
+        non_ref_gff=config["out_dir"] + "/all_samples/annotation/EVM.filter.rename.no_redun.PanGene.gff3",
         ref_plus_hq_gff=config["out_dir"] + "/HQ_samples/HQ_pan/pan_genes_no_alt_splicing.gff3"
     output:
         pan_genes=config["out_dir"] + "/all_samples/pan_genome/pan_genes.gff"
@@ -787,6 +768,7 @@ rule calculate_LQ_mRNA_cov:
         sort_script=utils_dir + "/custom_sort_bed.py",
         queue=config['queue'],
         priority=config['priority'],
+        ppn=2,
         logs_dir=LOGS_DIR
     conda:
         CONDA_ENV_DIR + '/bedtools.yml'
