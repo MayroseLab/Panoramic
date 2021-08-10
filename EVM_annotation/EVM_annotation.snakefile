@@ -651,7 +651,12 @@ rule partition_PASA:
         CONDA_ENV_DIR + '/gffutils.yml'
     shell:
         """
+        if [ -s {input.gff} ]
+        then
         python {params.partition_script} {input.gff} {input.lst}
+        else
+        touch {output}
+        fi
         """
 
 rule run_EVM:
@@ -739,10 +744,13 @@ rule combine_EVM_gffs:
         cat {input} > {output}
         """
 
-if config['split_chimeras'] == 1:
+if config['split_chimeras'] == 1 and config['transcripts_fasta']:
     evm_gff = os.path.join(config['out_dir'], 'evm.out.gff3.chimeraBuster.corrected.gff')
 else:
     evm_gff = os.path.join(config['out_dir'], 'evm.out.gff3')
+
+if not config['transcripts_fasta']:
+    config['transcripts_fasta'] = ''
 
 rule detect_chimeras:
     input:

@@ -179,7 +179,15 @@ rule prep_annotation_yaml:
         logs_dir=LOGS_DIR
     shell:
         """
-        sed -e 's@<INPUT_GENOME>@{input.genome}@' -e 's@<SAMPLE_NAME>@{wildcards.sample}@' -e 's@<OUT_DIR>@{params.annotation_dir}@' -e 's@<REFERENCE_CDS>@{input.ref_cds}@' -e 's@<REFERENCE_LIFTOVER>@1@' -e 's@<REFERENCE_GFF>@{input.ref_gff}@' -e 's@<REFERENCE_FASTA>@{input.ref_genome}@' -e 's@<TRANSCRIPTS_FASTA>@{input.transcripts}@' -e 's@<PROTEINS_FASTA>@{input.proteins}@' -e 's@<QUEUE>@{params.queue}@' -e 's@<PRIORITY>@{params.priority}@' -e 's@<PPN>@{params.ppn_}@' -e 's@<MAX_RAM>@{params.max_ram_}@' -e 's@<MAX_JOBS>@{params.max_jobs_}@' {input.yml_template} > {output}
+        if [ -s {input.transcripts} ]
+        then trans={input.transcripts}
+        else trans=''
+        fi
+        if [ -s {input.proteins} ]
+        then prot={input.proteins}
+        else prot=''
+        fi
+        sed -e 's@<INPUT_GENOME>@{input.genome}@' -e 's@<SAMPLE_NAME>@{wildcards.sample}@' -e 's@<OUT_DIR>@{params.annotation_dir}@' -e 's@<REFERENCE_CDS>@{input.ref_cds}@' -e 's@<REFERENCE_LIFTOVER>@1@' -e 's@<REFERENCE_GFF>@{input.ref_gff}@' -e 's@<REFERENCE_FASTA>@{input.ref_genome}@' -e "s@<TRANSCRIPTS_FASTA>@$trans@" -e "s@<PROTEINS_FASTA>@$prot@" -e 's@<QUEUE>@{params.queue}@' -e 's@<PRIORITY>@{params.priority}@' -e 's@<PPN>@{params.ppn_}@' -e 's@<MAX_RAM>@{params.max_ram_}@' -e 's@<MAX_JOBS>@{params.max_jobs_}@' {input.yml_template} > {output}
         """
 
 random_sample = list(config['samples_info'].keys())[0]
