@@ -188,6 +188,7 @@ rule split_genome_to_chr:
         """
 
 if config['augustus_species']:
+
     rule run_augustus:
         input:
             os.path.join(config['out_dir'],'{CHR}','{CHR}.fa')
@@ -253,6 +254,7 @@ else:
             """
 
 if config['snap_species']:
+
     rule run_snap:
         input:
             os.path.join(config['out_dir'],'{CHR}','{CHR}.fa')
@@ -268,7 +270,11 @@ if config['snap_species']:
             CONDA_ENV_DIR + '/snap.yml'
         shell:
             """
-            speciesHmm="$CONDA_PREFIX/share/snap/HMM/{params.species}.hmm"
+            if [ -f {params.species} ]; then
+                speciesHmm={params.species}
+            else
+                speciesHmm="$CONDA_PREFIX/share/snap/HMM/{params.species}.hmm"
+            fi
             snap $speciesHmm {input} > {output}
             """
 else:
