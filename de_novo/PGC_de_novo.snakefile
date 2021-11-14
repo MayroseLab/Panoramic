@@ -192,6 +192,9 @@ rule prep_annotation_yaml:
 
 random_sample = list(config['samples_info'].keys())[0]
 random_ref = config['samples_info'][random_sample]['ena_ref']
+if 'augustus_dir' not in config:
+    config['augustus_dir'] = ''
+
 rule install_EVM_dependencies:
     """
     Use conda/mamba to install
@@ -207,6 +210,7 @@ rule install_EVM_dependencies:
     params:
         EVM_annotation_snakefile=annotation_pipeline_dir + '/EVM_annotation.snakefile',
         out_dir=config['out_dir'],
+        augustus_dir=config['augustus_dir'],
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR
@@ -216,6 +220,10 @@ rule install_EVM_dependencies:
         """
         cd {params.out_dir}
         snakemake -s {params.EVM_annotation_snakefile} --configfile {input} -j 1 --use-conda --conda-create-envs-only
+        if [ ! -z "{params.augustus_dir}" ]; then
+            augustus_conda=$(grep "name: augustus" {params.out_dir}/.snakemake/conda/*.yaml | sed 's/\.yaml.*//')
+            cp -r {params.augustus_dir} $augustus_conda/config/species/
+        fi
         touch {output}
         """
 
