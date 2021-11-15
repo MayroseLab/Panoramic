@@ -347,8 +347,18 @@ rule prep_annotation_yaml:
         logs_dir=LOGS_DIR
     shell:
         """
-        sed -e 's@<INPUT_GENOME>@{input.novel}@' -e 's@<SAMPLE_NAME>@novel_sequences@' -e 's@<OUT_DIR>@{params.annotation_dir}@' -e 's@<REFERENCE_CDS>@@' -e 's@<REFERENCE_LIFTOVER>@0@' -e 's@<REFERENCE_GFF>@@' -e 's@<REFERENCE_FASTA>@@' -e 's@<TRANSCRIPTS_FASTA>@{input.transcripts}@' -e 's@<PROTEINS_FASTA>@{input.proteins}@' -e 's@<QUEUE>@{params.queue}@' -e 's@<PRIORITY>@{params.priority}@' -e 's@<PPN>@{params.ppn_}@' -e 's@<MAX_RAM>@{params.max_ram_}@' -e 's@<MAX_JOBS>@{params.max_jobs_}@' {input.yml_template} > {output}
+        if [ -s {input.transcripts} ]
+        then trans={input.transcripts}
+        else trans=''
+        fi
+        if [ -s {input.proteins} ]
+        then prot={input.proteins}
+        else prot=''
+        fi
+        sed -e 's@<INPUT_GENOME>@{input.novel}@' -e 's@<SAMPLE_NAME>@novel_sequences@' -e 's@<OUT_DIR>@{params.annotation_dir}@' -e 's@<REFERENCE_CDS>@@' -e 's@<REFERENCE_LIFTOVER>@0@' -e 's@<REFERENCE_GFF>@@' -e 's@<REFERENCE_FASTA>@@' -e "s@<TRANSCRIPTS_FASTA>@$trans@" -e "s@<PROTEINS_FASTA>@$prot@" -e 's@<QUEUE>@{params.queue}@' -e 's@<PRIORITY>@{params.priority}@' -e 's@<PPN>@{params.ppn_}@' -e 's@<MAX_RAM>@{params.max_ram_}@' -e 's@<MAX_JOBS>@{params.max_jobs_}@' {input.yml_template} > {output}
         """
+if 'augustus_dir' not in config:
+    config['augustus_dir'] = ''
 
 rule install_EVM_dependencies:
     """
@@ -365,6 +375,7 @@ rule install_EVM_dependencies:
     params:
         EVM_annotation_snakefile=annotation_pipeline_dir + '/EVM_annotation.snakefile',
         out_dir=config['out_dir'],
+        augustus_dir=config['augustus_dir'],
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR
@@ -374,6 +385,10 @@ rule install_EVM_dependencies:
         """
         cd {params.out_dir}
         snakemake -s {params.EVM_annotation_snakefile} --configfile {input} -j 1 --use-conda --conda-create-envs-only
+        if [ ! -z "{params.augustus_dir}" ]; then
+            augustus_conda=$(grep "name: augustus" {params.out_dir}/.snakemake/conda/*.yaml | sed 's/\.yaml.*//')
+            cp -r {params.augustus_dir} $augustus_conda/config/species/
+        fi
         touch {output}
         """
 
