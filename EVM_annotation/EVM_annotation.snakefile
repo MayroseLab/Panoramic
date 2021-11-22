@@ -366,7 +366,7 @@ if config['transcripts_fasta']:
             logs_dir=LOGS_DIR
         shell:
             """
-            sed 's|<DBPATH>|{params.db_path}|' {input} > {output}
+            sed 's|<DBPATH>|{params.db_path}|' {input.template} > {output}
             """
     rule PASA_assembly:
         input:
