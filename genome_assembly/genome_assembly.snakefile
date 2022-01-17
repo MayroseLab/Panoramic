@@ -215,7 +215,10 @@ if config['assembler'] == 'spades':
 elif config['assembler'] == 'minia':
     rule fetch_minia:
         """
-        Download latest version of gat-minia-pipeline
+        Download the gatb-minia-pipeline,
+        then checkout a specific version
+        and replace the main script with
+        Panoramic's modified version.
         """
         output:
             config["out_dir"] + "/gatb-minia-pipeline/gatb"
@@ -223,11 +226,15 @@ elif config['assembler'] == 'minia':
             queue=config['queue'],
             priority=config['priority'],
             logs_dir=LOGS_DIR,
-            out_dir=config["out_dir"]
+            out_dir=config["out_dir"],
+            gatb_modified=os.path.join(genome_assembly_dir,'gatb')
         shell:
             """
             cd {params.out_dir}
             git clone --recursive https://github.com/GATB/gatb-minia-pipeline
+            cd {params.out_dir}/gatb-minia-pipeline
+            git checkout 831ba4e
+            cp {params.gatb_modified} ./
             """
 
     rule create_single_reads_list:
@@ -268,7 +275,7 @@ elif config['assembler'] == 'minia':
             logs_dir=LOGS_DIR
         shell:
             """
-            {input.minia} -1 {input.r1_paired} -2 {input.r2_paired} -s {input.single_reads_list} --nb-cores {params.ppn} --no-scaffolding -o {params.out_dir}/assembly
+            {input.minia} -1 {input.r1_paired} -2 {input.r2_paired} -s {input.single_reads_list} --nb-cores {params.ppn} --no-scaffolding -o {params.out_dir}/assembly --cleanup
             ln {params.out_dir}/assembly_final.contigs.fa {output}
             """
 

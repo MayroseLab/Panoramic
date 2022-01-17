@@ -1,0 +1,647 @@
+#!/usr/bin/env python2
+
+############################################
+# Note: this is a modified version of the  #
+# GATB-Minia pipeline, allowing for files  #
+# cleanup and reduced disk usage.          #
+# See the --cleanup option.                #
+############################################
+
+import sys, os, shutil
+from subprocess import call, Popen, PIPE, STDOUT, check_output
+import glob
+
+if 3 > int(sys.version[0]): # only works in python 2
+    sys.stdout = os.fdopen(sys.stdout.fileno(), 'w', 0) #unbuffered print, solves badly ordered stdout on clusters
+
+prefix="assembly"
+
+doc = """GATB Pipeline
+
+Usage:
+
+    %s [arguments]
+
+Reads (mandatory, specify at least one of these parameters):
+
+    --12 <filename>                 interleaved paired reads
+    -1   <filename>                 non-interleaved paired reads (forward mates)
+    -2   <filename>                                            (reverse mates)
+    -s   <filename>                 single reads
+    -l   <file_of_filenames>        list of single reads, one file name per line
+    --mp-12  <filename>             same input as paired reads (--12) but for mate pairs
+    --mp-1   <filename>             same input as paired reads (-1 -2) but for mate pairs
+    --mp-2   <filename>
+
+Advanced parameters (optional):
+
+    -o <string>                     prefix of the output files (default: assembly)
+    -c <filename>                   filename of contigs, will only perform scaffolding+gapfilling
+    --step <step>                   step size to control increments of k values (default: 20)
+    --kmer-sizes <k1>,<k2>,..       comma-separated list of k-mer sizes (default: 21,21+step,21+2*step,..)
+    --abundance-mins <t1>,<t2>,..   list of low abundance thresholds (default: 2,2,2,..)
+    --max-memory <int>              go faster by using more memory (in MB) (default: as much as Minia needs)
+    --restart-from <k>              k value where to restart the multi-k process (useful for interrupted jobs)
+    --continue-scaffolding          continue an interrupted scaffolding (already mapped libraries are not remapped;
+                                                                         should be used along with -c <assembly_kXXX.fa>)
+    --no-scaffolding                skips scaffolding
+    --no-error-correction           skips error correction
+    --besst_iter <int>              number of iteration during Besst scaffolding (default:10000)
+
+    --nb-cores <int>                number of core to use with Bloocoo and Besst (default: all)
+
+    --cleanup                       clean intermediate files after each iteration, to save disk space
+
+""" % (sys.argv[0])
+
+paired_reads = []
+mate_pairs = []
+unpaired_reads = []
+contigs = None
+list_k_values = []
+list_min_abundances = []
+k_restart = -1
+step = 20
+max_memory = -1
+debug_mode = 0  # 0: no debugging
+skip_scaffolding = 0    # 0: do scaffolding
+cleanup = False         # Do not clean intermediate files
+
+nb_cores_bloocoo=None
+nb_cores_besst=None
+
+
+
+# it's a hardcoded switch; only switch to sspace if you have good reasons to dislike besst! because besst rocks.
+#scaffolding_method="sspace"
+scaffolding_method="besst"
+
+# Set them to true to enable bloocoo
+use_bloocoo_preprocessing = False# used to launch bloocoo
+bloocoo_mode = False# used in restart mode (bloocoo _not_ launched)
+
+continue_scaffolding = False
+besst_iter = 10000
+l_minia_reads = [] # list of filenames used by minia
+
+try:
+    skip = 1 # this was formerly to handle paired-end case (-p XX XX) but it's not needed anymore now
+    library = ""
+    for i,arg in enumerate(sys.argv):
+        if skip > 0:
+            skip -= 1
+            continue
+        skip = 1
+        if arg == "--12" or arg == "--mp-12":
+           library = sys.argv[i+1]
+           paired_reads.append(library) # list of all pairendd/matepairs reads
+           if arg == "--mp-12":
+               mate_pairs.append(library) # remember which are matepairs
+        elif arg == "-1" or arg == "--mp-1":
+           library = sys.argv[i+1]
+        elif arg == "-2" or arg == "--mp-2":
+           if library == "":
+               exit("missing -1 parameter")
+           library += " " + sys.argv[i+1]
+           paired_reads.append(library) # list of all pairendd/matepairs reads
+           if arg == "--mp-2":
+               mate_pairs.append(library) # remember which are matepairs
+           library = ""
+        elif arg == "-s":
+           unpaired_reads.append(sys.argv[i+1])
+        elif arg == "-c":
+           contigs = sys.argv[i+1]
+        elif arg == "--kmer-sizes":
+           list_k_values = list(map(int,sys.argv[i+1].split(',')))
+        elif arg == "--abundance-mins":
+           list_min_abundances = list(map(int,sys.argv[i+1].split(',')))
+        elif arg == "-l":
+            unpaired_reads = open(sys.argv[i+1]).read().splitlines()
+        elif arg == "-o":
+            prefix = sys.argv[i+1]
+        elif arg == "--restart-from":
+            k_restart = int(sys.argv[i+1])
+            use_bloocoo_preprocessing = False #no ec when continuing, of course
+        elif arg == "--step":
+            step = int(sys.argv[i+1])
+        elif arg == "--max-memory":
+            max_memory = int(sys.argv[i+1])
+        elif arg == "--nb-cores":
+            nb_cores_bloocoo = int(sys.argv[i+1])
+            nb_cores_besst   = int(sys.argv[i+1])
+        elif arg == "--besst_iter":
+        	besst_iter = int( sys.argv[i+1] )
+
+        # special cases: 0-parameters arguments, need for "skip=0", well one day i'll use getopt
+        elif arg == "--sspace":  #hidden parameter, for now
+            scaffolding_method = "sspace"
+            skip = 0
+        elif arg == "--no-error-correction":
+            use_bloocoo_preprocessing = False
+            bloocoo_mode = False
+            skip = 0
+        elif arg == "--continue-scaffolding":
+            continue_scaffolding = True
+            skip = 0
+        elif arg == "--no-scaffolding":
+            skip_scaffolding = 1
+            skip = 0
+        elif arg == "--cleanup":
+            cleanup = True
+            skip = 0
+
+        elif arg in ["-h", "-help", "--help"]:
+            raise Exception("Displaying help")
+
+        # debug mode
+        elif arg == "--debug":
+            debug_mode = int(sys.argv[i+1])
+        else:
+            print("Unknown parameters", arg)
+            raise Exception("Displaying help")
+    if len(paired_reads) + len(unpaired_reads) == 0:
+        raise Exception("Please input at least one read dataset")
+except:
+    import traceback
+    traceback.print_exc()
+    print(doc)
+    sys.exit(1)
+
+from sys import platform
+if platform == "darwin":
+    exit("gatb-pipeline requires a Linux 64 bits system")
+
+
+#-- multi-threading parameters
+if( None == nb_cores_bloocoo ):
+	try:
+		nb_cores_system = int(check_output(["nproc"]))
+	except ValueError:
+		print("machine has no nproc, setting threads to 1")
+		nb_cores_system = 1
+
+	nb_cores_bloocoo = nb_cores_system  # for bloocoo
+	nb_cores_besst = nb_cores_system    # for besst
+
+#-- debug mode
+if debug_mode == 0 :
+    print("No debugging option")
+elif debug_mode == 1 :
+    nb_cores_bloocoo = 1
+    print("debug_mode=%d : minia single-threaded, bloocoo [if used] single-threaded" % debug_mode)
+elif debug_mode == 2 :
+    print("debug_mode=%d : minia single-threaded, bloocoo [if used] multi-threaded (with nb_cores_bloocoo=%d)" % (debug_mode, nb_cores_bloocoo))
+else :
+    print("Error in --debug option")
+    sys.exit(1)
+
+
+DIR = os.path.dirname(os.path.realpath(__file__))
+
+from time import gmtime, strftime
+class Logger(object):
+    def __init__(self):
+        global prefix
+        with open(prefix + ".log","w") as logfile:
+            self("GATB-pipeline starting")
+            self("Command line: %s \n\n" % ' '.join(sys.argv))
+    def __call__(self, message):
+        global prefix
+        message = ("(%s) "  % strftime("%Y-%m-%d %H:%M:%S", gmtime()))+ message
+        logfile= open(prefix + ".log", "a")
+        sys.stderr.flush()
+        sys.stdout.write(message+"\n")
+        sys.stdout.flush()
+        logfile.write(message+"\n")
+        logfile.flush()
+        logfile.close()
+log = Logger()
+
+def execute(program, cmdline=[], interpreter=None, stdout=None, memused=False):
+    ret = 0
+    try:
+        cmd = []
+        if memused:
+            cmd += [ "%s/tools/memused" % DIR ]
+        if interpreter:
+            cmd += [interpreter]
+        if program is not None:
+            cmd += [ "%s/%s" % (DIR, program) ]
+        cmd += map(str, cmdline)
+        program_string = ((interpreter + " ") if interpreter is not None else "") + (program if program is not None else "")
+        log("Execution of '%s'. Command line: \n     %s" % (program_string, ' '.join(cmd)))
+        stderr = None
+        log_output = stdout is None # log to file
+        log_output = False # disabled logging of execute() programs, because it causes stdout/stderr to be slightly not in order (try it, you will see)
+        if log_output:
+            stdout=PIPE
+            #stderr=STDOUT  # i changed my mind, let's not capture stderr, minia outputs annoying progress bars
+        p = Popen(cmd, stdout=stdout, stderr=stderr, bufsize=0) #unbuffered
+        if log_output:
+            global prefix
+            tee = Popen(['tee', '--append', prefix + ".log"], stdin=p.stdout)
+            p.stdout.close()
+            tee.communicate()
+        ret = p.wait()
+    except OSError as e:
+        log("Exception:" + str(e) )
+        ret = 1
+    if ret:
+        log("Execution of '%s' failed. Command line: \n     %s" % (program_string, ' '.join(cmd)))
+        exit(1)
+
+list_reads = prefix + ".list_reads"
+final_assembly = prefix + ".fasta"
+
+
+# check that -s isnt mixed up with -l
+for ur in unpaired_reads:
+    try:
+        try: # some code duplication with below
+            import gzip
+            fp = gzip.open(ur)
+            fp.read(2) # read arbitrary bytes to check if gzipped
+            fp.close() # close and reopen if successful
+            fp = gzip.open(ur)
+        except Exception as e:
+            fp.close()
+            fp = open(ur)
+        from tools.readfq import readfq
+        for name, seq, qual in readfq(fp):
+            break
+        fp.close()
+    except:
+        import traceback
+        traceback.print_exc()
+
+        exit("are you sure you didn't confuse -s with -l?")
+
+
+def create_list_reads( l_reads ):
+    '''create of flat text file with l_reads'''
+    with open( list_reads, 'w' ) as f:
+        for read in l_reads:
+            for filename in read.strip().split():
+                if not os.path.exists(filename):
+                    exit("Read file %s does not exist" % filename)
+                f.write( filename + "\n" )
+
+def sav_list_reads( suffix ):
+    if( os.path.exists( list_reads ) ):
+        shutil.copyfile( list_reads, ".".join( [list_reads, suffix] ) )
+
+# ------------------------------
+# minia
+
+def minia(k, min_abundance, prefix):
+    global contigs
+    if k == 0:
+        exit('cannot execute minia with k=0')
+
+    params = ['-in', list_reads, '-kmer-size', k, '-abundance-min', min_abundance, '-out', prefix]
+
+    if max_memory != -1:
+        params += ['-max-memory',max_memory]
+
+    if k >= 128:
+        params += ['-debloom','original'] # fix for large k values
+
+    if ( 1 <= debug_mode <= 2) :
+        params += ['-nb-cores','1'] # issue54
+
+    execute('minia/minia', params, memused=True)
+    contigs = prefix + ".contigs.fa"
+    return contigs
+
+def wd_cleanup(wd):
+    """
+    Remove *.hd5 and *glue* files
+    from working dir
+    """
+    for f in os.listdir(wd):
+        if f.endswith('.h5') or 'glu' in f:
+            os.remove(os.path.join(wd, f))
+
+# ------------------------------
+# wrapper for bloocoo
+
+def bloocoo(output_file_prefix, threshold=2, kmer_size=31):
+
+    # bloocoo command line arguments
+    keyword = ".corrected_with_bloocoo"
+    corrected_fasta = output_file_prefix + keyword + ".fa"
+    params = ['-file', list_reads, '-out', corrected_fasta, '-abundance-min', threshold,
+              '-kmer-size', kmer_size, '-nb-cores', nb_cores_bloocoo , '-slow', '-high-precision']
+    log("Running bloocoo on %d cores" % nb_cores_bloocoo)
+
+    # call bloocoo
+    execute('bloocoo/Bloocoo', params)
+    log("Bloocoo done\n\n")
+
+    return bloocoo_list_corrected(output_file_prefix, list_reads, corrected_fasta, keyword)
+
+#-------------------------------
+# bloocoo helper
+
+def bloocoo_list_corrected(c_output_file_prefix, c_list_reads, c_corrected_fasta, c_keyword):
+
+    log("Calling bloocoo_list_corrected...")
+
+    # 2 cases: one or several input banks (cf. Bloocoo.cpp)
+    #          according to the number of lines of the list_reads file
+    with open(c_list_reads) as f:
+        nInputBanks = sum(1 for _ in f) # nb of lines in list_reads
+
+    log("Bloocoo used %d input file(s)\n\n" % nInputBanks)
+
+    if nInputBanks == 1:    # one input bank
+    	return [ c_corrected_fasta ]
+    elif nInputBanks > 1:   # several input banks
+        c_list_corrected = sorted(glob.glob(c_output_file_prefix+'*'+c_keyword+'*_*_*'))
+        if len(c_list_corrected) != nInputBanks:
+            print("Error: Bloocoo returned fewer error-corrected files (%d) than original input files (%d)" % (len(bloocoo_output), nInputBanks))
+            exit(1)
+        return c_list_corrected
+    else:
+        log("Error: nInputBanks=%d " %  nInputBanks)
+
+
+
+
+
+def get_paired_end_parameters(contigs, library, is_mate_pairs = False):
+    paired_reads = library.split(' ')
+    cmd = ["%s/tools/estimate-insert-sizes" % DIR, contigs] + paired_reads
+    if is_mate_pairs:
+        cmd += ["--RF"] # force mate pairs
+    output = Popen(cmd, stdout=PIPE).communicate()[0]
+    orientation, mean, stdev = None, None, None
+    for line in output.split('\n'):
+        if line.startswith('Orientation'):
+            l = line.split()
+            orientation, mean, stdev = l[1], int(l[3]), int(l[5])
+    log("GATB-Pipeline estimated insert size of library " + str(paired_reads) + " : %f %f %s " %(mean, stdev, orientation ))
+    return orientation, mean, stdev
+
+def possibly_gunzip(filename, lib_index, paired_index=None):
+    if filename.endswith('.gz'):
+        unzipped_filename = '.'.join(filename.split(".")[:-1])
+        ext = unzipped_filename.split(".")[-1]
+        output = prefix + '.lib%d' % lib_index
+        if paired_index:
+            output += "_%d" % paired_index
+        output += "." + ext
+        log("Gunzipping " + str(filename) +  " to " + str(output))
+        outfile = open(output, 'wb')
+        execute(None, ['-c', filename], interpreter='gunzip', stdout=outfile)
+        outfile.close
+        return output
+    return filename
+
+def sspace(contigs, paired_reads, output_filename=""):
+    # create a sspace config file
+    lib_file = prefix + '.sspace.config'
+    with open(lib_file, 'w') as f:
+        for i, library in enumerate(paired_reads):
+            is_mate_pairs = library in mate_pairs
+            # sspace needs de-interleaved input
+            if ' ' not in library:
+                library = possibly_gunzip(library, i)
+                log("Splitting interleaved file: " +str(library))
+                ext = library.split(".")[-1]
+                p1, p2 = [prefix + ".lib%d_%d." % (i,j) + ext for j in [1,2] ]
+                #de-interleave reads using SGA's script (was too lazy to write my own)
+                execute('tools/sga-deinterleave.pl', [library, p1, p2], interpreter="perl")
+                library = p1 + " " + p2
+            else:
+                # sspace basic cannot work with gzipped files
+                p1, p2 = library.split(' ')
+                library = possibly_gunzip(p1, i, 1) + ' ' + possibly_gunzip(p2, i, 2)
+
+            # estimate insert size
+            orientation, mean, stdev = get_paired_end_parameters(contigs, library, is_mate_pairs)
+            if orientation is None:
+                exit("Error running estimate-insert-sizes for library: %s" % library)
+
+            # sspace error isn't exactly the stdev; subjectively, I'm converting using 3 sigmas
+            error = min(max(0.1, stdev * 3.0 / mean),0.9)
+            f.write('lib%d %s %d %0.1f %s\n' % (i, library, mean, error, orientation))
+
+    # run sspace
+    cmd = ['-l', lib_file, '-s', contigs, '-b', prefix + '.sspace']
+    execute('sspace/SSPACE_Basic_v2.0.pl', cmd, interpreter="perl", memused=True)
+    log("SSPACE is done! the maximal memory used above was for SSPACE only")
+
+    # clean up intermediate sspace files
+
+
+# ------------------------------
+# besst wrapper
+
+# besst and its script needs python >= 2.7 < 3, see if we have it installed on the system somewhere
+def check_for_python_27():
+    for i, python27 in enumerate(['python', 'python2', 'python2.7', 'python-2.7']):
+        try:
+            ret = call([python27, "-c", "from collections import Counter"],stdout=PIPE,stderr=PIPE)
+            #also need to make sure it's not python3 (BESST doesn't support it)
+            ret = call([python27, "-c", "import sys; assert(int(sys.version[0]) == 2)"],stdout=PIPE,stderr=PIPE)
+        except:
+            ret = 1
+        if ret == 0:
+            if i > 0:
+                log("found Python 2.7 via command: " + str(python27))
+            return python27
+    exit("BESST needs Python >= 2.7 and < 3, make sure it is aliased to either the 'python' or the 'python2.7' command on your shell")
+
+
+def run_besst_mapping(i, contigs, library):
+    interpreter = check_for_python_27()
+    # besst needs de-interleaved input, for the mapping phase (else it thinks they're single end)
+    if ' ' not in library:
+        library = possibly_gunzip(library, i) # until sga-deinterleave supports gzipped input, no other choice but to gunzip
+        log("Splitting interleaved file: " + str(library))
+        ext = library.split(".")[-1]
+        p1, p2 = [prefix + ".lib%d_%d." % (i,j) + ext for j in [1,2] ]
+        #de-interleave reads using SGA's script (was too lazy to write my own)
+        execute('tools/sga-deinterleave.pl', [library, p1, p2], interpreter="perl")
+        library = p1 + " " + p2
+    paired_reads = library.split(' ')
+
+    output_bam = prefix + '.lib_%d' % i
+    os.environ["TEMP"] = os.getcwd() # besst uses tempfile which uses $TEMP to store mapping data
+    done_file = output_bam + ".bam.done"
+    if os.path.exists(done_file) and continue_scaffolding:
+        log("Reusing existing BAM file for library " + str(library))
+    else:
+        execute('BESST/scripts/reads_to_ctg_map.py', ["--tmp_path", os.path.dirname(os.path.realpath(output_bam)) + os.sep + "BESST_tmp"] + ["--threads", nb_cores_besst] + paired_reads + [contigs, output_bam], interpreter=interpreter)
+        open(done_file, 'a').close()
+    return output_bam + ".bam"
+
+def besst(contigs, bam_files, orientations, output_filename="" ):
+    global k, final_assembly,  besst_iter
+    interpreter = check_for_python_27()
+    #filter_contigs = (200 if len(mate_pairs) == 0 else 1000) #hacky
+    #cmd = ['-c', contigs, '-f'] + bam_files + ['--orientation'] + orientations + ['-filter_contigs', filter_contigs, '-o', prefix + '_besst', '-K', k]
+    # let's try with as few parameters as possible
+    cmd = ['-c', contigs, '-f'] + bam_files + ['-o', prefix + '_besst'] + ['-orientation'] + orientations + ['--iter', besst_iter]
+    execute('BESST/runBESST', cmd, interpreter=interpreter, memused=True)
+    besst_scaffolds = sorted(glob.glob(prefix + "_besst/BESST_output/pass*/*.fa"))
+    if len(besst_scaffolds) == 0:
+        exit("Error: BESST returned no results in %s" % (prefix + "_besst/"))
+    last_pass = besst_scaffolds[-1]
+    if os.path.exists(final_assembly):
+        os.remove(final_assembly)
+    os.symlink(last_pass, final_assembly)
+    log( "BESST is done! the maximal memory used above was for BESST only")
+
+
+# ------------------------------
+# wrapper for scaffolding
+
+def scaffold(contigs, paired_reads):
+    if scaffolding_method == "sspace":
+        sspace(contigs,paired_reads)
+    elif scaffolding_method == "besst":
+        # besst needs pre-mapping one library at a time
+        bam_files, orientations = [], []
+        for i, paired_read in enumerate(paired_reads):
+            bam_files += [run_besst_mapping(i,contigs,paired_read)]
+            orientations += [ 'rf' if paired_read in mate_pairs else 'fr' ]
+        besst(contigs,bam_files, orientations )
+
+# ------------------------------
+# auxiliary function
+
+def get_read_length(list_reads):
+    read_lengths = []
+    for library in list_reads:
+        if ' ' in library:
+            reads_list = library.split(' ')
+        else:
+            reads_list = [library]
+        for reads_file in reads_list:
+            try:
+                import gzip
+                fp = gzip.open(reads_file)
+                fp.read(2) # read arbitrary bytes to check if gzipped
+                fp.close() # close and reopen if successful
+                fp = gzip.open(reads_file)
+            except Exception as e:
+                fp.close()
+                fp = open(reads_file)
+            # read the 1000 first reads
+            from tools.readfq import readfq
+            read_count = 0
+            for name, seq, qual in readfq(fp):
+                read_count += 1
+                read_lengths += [len(seq)]
+                if read_count > 1000:
+                    break
+            fp.close()
+
+    # so, on CEA cluster, loading numpy forced minia to run on a single thread. so let's not use numpy here. days of debugging to get that.
+    import math
+    def percentile(data, percentile):
+        size = len(data)
+        return sorted(data)[int(math.ceil((size * percentile) / 100)) - 1]
+
+    if len(read_lengths) == 0:
+        print("WARNING: couldn't detect max read length. Are you sure the input is correct?")
+        exit(1)
+
+    estimated_max_read_length = percentile(read_lengths,90)
+    log("Setting maximum kmer length to: " + str(estimated_max_read_length) + " bp") # based on the 90 percentile of 1000 first reads lengths of each input file
+    return estimated_max_read_length
+
+# ------------------------------
+# main pipeline
+
+if contigs is None: # need to create contigs, or are they given?
+    create_list_reads( paired_reads + unpaired_reads )
+
+    if use_bloocoo_preprocessing == True:
+
+        # call bloocoo
+        l_reads_corrected = bloocoo(output_file_prefix=prefix)
+
+        # now list_reads contains only the bloocoo output filename(s)
+        sav_list_reads( "orig" )
+
+        # I copy into unpaired_reads because paired_reads are used in scaffolding, not unpaired.
+        l_minia_reads = l_reads_corrected
+    else:
+        if ( k_restart != -1 and bloocoo_mode == True ):  # whenever we have both --restart-from and bloocoo
+            keyword = ".corrected_with_bloocoo"
+            corrected_fasta = prefix + keyword + ".fa"
+            l_minia_reads = bloocoo_list_corrected(prefix, list_reads, corrected_fasta, keyword)
+        else:
+            l_minia_reads = paired_reads + unpaired_reads
+
+
+
+	# minia preparation
+    if len(list_k_values) == 0:
+        max_k = get_read_length( l_minia_reads ) #TODO: modify bloocoo so that it gives a read length histogram, rather than using this hacky procedure to get max read length
+        if max_k <= 21:
+            sys.exit("Reads are shorter than 21 base pairs? (%d bp at 90 percentile of read lengths over the first 1000 reads of each input file).\nNotify a developer if this estimation was wrong, or if your reads are really that short, please set the list of kmer lengths manually using the --kmer-sizes parameter" % max_k)
+        # two implicit assumptions: do not make more than 20 rounds, and start at k=21
+        for i in range(20):
+            k = 21 + i*step
+            if k <= max_k and k <= 256: #max supported in minia binary is 256
+                list_k_values += [k]
+
+    if len(list_min_abundances) == 0:
+        list_min_abundances = [2]*len(list_k_values)
+
+    if len(list_min_abundances) == 1 and len(list_k_values) > 1:
+        list_min_abundances = [list_min_abundances[0]]*len(list_k_values)
+
+    cutoffs = sorted(zip(list_k_values, list_min_abundances))
+
+    if k_restart == -1:
+        log("Multi-k values and cutoffs: " + str(cutoffs) + "\n\n")
+    else:
+        log("*** restart mode")
+        cutoffs_keys = sorted([x for x in dict(cutoffs).keys()])
+        last_k_value_before_restart = cutoffs_keys[cutoffs_keys.index(k_restart)-1]
+        log("*** pipeline restart mode: k_restart=%d (last_k_value_before_restart=%d) *** " % (k_restart, last_k_value_before_restart))
+        cutoffs = sorted([(key,dict(cutoffs)[key]) for key in cutoffs_keys if key >= k_restart])
+        log("Restarting GATB-pipeline with cutoffs " + str(cutoffs))
+        log("This assumes that an assembly with k =" + str(last_k_value_before_restart) + " exists.")
+
+    last_k_value = 0
+    previous_contigs = None if k_restart == -1 else  prefix+"_k%d.contigs.fa"%last_k_value_before_restart
+    wd = os.path.dirname(prefix)
+    """
+    multi-k minia iteration happens here
+    """
+    for k in sorted(dict(cutoffs).keys()):
+        min_abundance = dict(cutoffs)[k]
+        log("Minia assembling at k=%d min_abundance=%d" % (k, min_abundance))
+        extra_reads = [previous_contigs]*(min_abundance+1) if previous_contigs is not None else []
+        create_list_reads( l_minia_reads + extra_reads )
+        sav_list_reads( str(k) )	# create a copy for dbg purpose
+        multi_k_prefix = prefix + "_k%d" % k
+        previous_contigs = minia(k, min_abundance, prefix=multi_k_prefix)
+        last_k_value = k
+        log("Finished Minia k=%d\n\n" % last_k_value)
+        if cleanup:
+            wd_cleanup(wd)
+            log("Removed intermediate files for k=%d\n\n" % last_k_value)
+    k = last_k_value # hint for besst
+    os.symlink(previous_contigs.rsplit("/", 1)[-1], prefix+"_final.contigs.fa")     # create system link in same location as files
+    log("Finished Multi-k GATB-Pipeline at k=%d\n\n" % last_k_value)
+
+# scaffolding all libraries
+if (skip_scaffolding == 0):
+    if len(paired_reads) > 0:
+        scaffold(contigs, paired_reads)
+    else:
+        if os.path.exists(final_assembly):
+            os.remove(final_assembly)
+        os.symlink(contigs, final_assembly)
+    log("Finished scaffolding. Scaffolds are in: %s" % final_assembly)
+else:
+    log("Skipped scaffolding.")
+
+log("Pipeline finished!")
