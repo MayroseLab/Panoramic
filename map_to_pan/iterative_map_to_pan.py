@@ -17,7 +17,10 @@ import os
 import csv
 import argparse
 from Bio import SeqIO
+from Bio.SeqRecord import SeqRecord
+from Bio.Seq import Seq
 from shutil import copy
+import re
 
 if __name__ == "__main__":
 
@@ -31,6 +34,7 @@ if __name__ == "__main__":
   parser.add_argument('--cpus', default=1, type=int, help='Number of CPUs to use in Minimap')
   parser.add_argument('--min_len', default=1, type=int, help='Minimal sequence length to add to pan')
   parser.add_argument('--min_protein', default=0, type=int, help='Minimal protein length of genes to be included in output gff')
+  parser.add_argument('--min_gap_break', default=0, type=int, help='If set to a number X >= 1, genomes will be broken on gaps at least X Ns large (improves Minimap run time)')
   args = parser.parse_args()
 
   # make sure required scripts are available
@@ -75,6 +79,28 @@ if __name__ == "__main__":
         if 'proteins_fasta' in row and row['proteins_fasta']:
           proteins_fasta = row['proteins_fasta']
 
+      # break genome on gaps
+      if args.min_gap_break > 0:
+        gaps_regex = re.compile(r'N+')
+        assembly_break = os.path.join(args.out_dir, "%s_break.fasta" % genome_name)
+
+        with open(assembly_break,'w') as fo:
+          for rec in SeqIO.parse(assembly_fasta,'fasta'):
+            s = 0
+            for gap in gaps_regex.finditer(str(rec.seq)):
+              if len(gap.group()) < args.min_gap_break:
+                continue
+              if gap.start() - s < args.min_len:
+                continue
+              new_rec_id = "{}_{}-{}".format(rec.id, s+1, gap.start())
+              new_rec = SeqRecord(seq=rec[s:gap.start()].seq, id=new_rec_id, name='', description='')
+              print(new_rec.format('fasta').strip(), file=fo)
+              s = gap.end()
+            new_rec_id = "{}_{}-{}".format(rec.id, s+1, len(rec.seq))
+            new_rec = SeqRecord(seq=rec[s:].seq, id=new_rec_id, name='', description='')
+            print(new_rec.format('fasta').strip(), file=fo)
+
+        assembly_fasta = assembly_break
       # run minimap2
       out_paf = os.path.join(args.out_dir, "%s_vs_pan.paf" % genome_name)
       os.system("minimap2 -x asm5 -L -t %s %s %s -o %s -c" % (args.cpus, pan_fasta, assembly_fasta, out_paf))

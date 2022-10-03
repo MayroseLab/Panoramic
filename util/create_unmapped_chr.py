@@ -23,15 +23,21 @@ def create_um_chr(genome, pattern, out_fasta, gap_size, um_chr_name):
   regex = re.compile(pattern)
   um_scaffolds = []
 
-  with open(out_fasta,'w') as fo:
-    for rec in SeqIO.parse(genome, 'fasta'):
-      if not regex.match(rec.id):
-        print(rec.format('fasta'), file=fo)
-      else:
-        um_scaffolds.append(rec)
-    un_chr_seq = ('N'*gap_size).join([str(u.seq) for u in um_scaffolds])
-    um_chr_rec = SeqRecord(id=um_chr_name, name='', description='', seq=Seq(un_chr_seq))
-    print(um_chr_rec.format('fasta'), file=fo)
+  if out_fasta == '-':
+    fo = sys.stdout
+  else:
+    fo = open(out_fasta,'w')
+  for rec in SeqIO.parse(genome, 'fasta'):
+    if not regex.match(rec.id):
+      print(rec.format('fasta'), file=fo)
+    else:
+      um_scaffolds.append(rec)
+  un_chr_seq = ('N'*gap_size).join([str(u.seq) for u in um_scaffolds])
+  um_chr_rec = SeqRecord(id=um_chr_name, name='', description='', seq=Seq(un_chr_seq))
+  print(um_chr_rec.format('fasta'), file=fo)
+  if out_fasta != '-':
+    fo.close()
+
   um_scaffold_coords = {}
   i = 1
   for u in um_scaffolds:

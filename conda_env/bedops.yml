@@ -2,4 +2,4 @@ name: bedops
 channels:
   - bioconda
 dependencies:
-  - bedops
+  - bedops=2.4.39

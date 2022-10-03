@@ -30,7 +30,10 @@ print('Pan-genome construction using the %s pipeline' % PIPELINE)
 print("#########################")
 
 # get configfile path
-i = sys.argv.index('--configfile')
+if '--configfile' in sys.argv:
+  i = sys.argv.index('--configfile')
+elif '--configfiles' in sys.argv:
+  i = sys.argv.index('--configfiles')
 config_path = os.path.realpath(sys.argv[i+1])
 
 # assert required params are in config

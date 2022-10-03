@@ -1,5 +1,6 @@
 name: augustus
 channels:
+  - conda-forge
   - bioconda
 dependencies:
   - augustus=3.4.0

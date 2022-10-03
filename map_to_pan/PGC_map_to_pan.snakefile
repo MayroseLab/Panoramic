@@ -16,8 +16,8 @@ of the following general steps:
 """
 
 import os
-pipeline_dir = os.path.dirname(os.path.realpath(workflow.snakefile))
-utils_dir = os.path.dirname(pipeline_dir) + '/util'
+mtp_pipeline_dir = os.path.dirname(os.path.realpath(workflow.snakefile))
+utils_dir = os.path.dirname(mtp_pipeline_dir) + '/util'
 import sys
 sys.path.append(utils_dir)
 from snakemakeUtils import *
@@ -35,7 +35,10 @@ print('Pan-genome construction using the %s pipeline' % PIPELINE)
 print("#########################")
 
 # get configfile path
-i = sys.argv.index('--configfile')
+if '--configfile' in sys.argv:
+  i = sys.argv.index('--configfile')
+elif '--configfiles' in sys.argv:
+  i = sys.argv.index('--configfiles')
 config_path = os.path.realpath(sys.argv[i+1])
 
 # assert required params are in config
@@ -66,9 +69,9 @@ def init():
 init()
 config['samples_info'] = OrderedDict(config['samples_info'])
 LOGS_DIR = config['out_dir'] + "/logs"
-CONDA_ENV_DIR = os.path.dirname(pipeline_dir) + '/conda_env'
-annotation_pipeline_dir = os.path.dirname(pipeline_dir) + '/EVM_annotation'
-pan_genome_report_dir = os.path.dirname(pipeline_dir) + '/pan_genome_report'
+CONDA_ENV_DIR = os.path.dirname(mtp_pipeline_dir) + '/conda_env'
+annotation_mtp_pipeline_dir = os.path.dirname(mtp_pipeline_dir) + '/EVM_annotation'
+pan_genome_report_dir = os.path.dirname(mtp_pipeline_dir) + '/pan_genome_report'
 if 'cluster_wrapper' in config and config['cluster_wrapper']:
     cluster_param = '--cluster \"%s\"' % config['cluster_wrapper']
 else:
@@ -189,7 +192,7 @@ rule iterative_map_to_pan_HQ:
        config["out_dir"] + "/HQ_samples/HQ_pan/pan_genes.gff",
        config["out_dir"] + "/HQ_samples/HQ_pan/pan_proteins.fasta"
     params:
-        map_to_pan_script=pipeline_dir + '/iterative_map_to_pan.py',
+        map_to_pan_script=mtp_pipeline_dir + '/iterative_map_to_pan.py',
         min_len=config['min_length'],
         min_protein=config['min_protein'],
         out_dir=config["out_dir"] + "/HQ_samples/HQ_pan",
@@ -238,7 +241,7 @@ rule prep_tsv_for_LQ_samples:
     from assembled LQ samples
     """
     input:
-        expand(config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contigs_filter.fasta", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()])
+        expand(config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/ragtag.scaffolds.fasta", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()])
     output:
         config["out_dir"] + "/all_samples/pan_genome/samples.tsv"
     params:
@@ -248,7 +251,7 @@ rule prep_tsv_for_LQ_samples:
     shell:
         """
         echo "sample\tgenome_fasta" > {output}
-        echo "{input}" | tr ' ' '\n' | awk '{{split($0,a,"/"); print a[length(a)-2]"\t"$0}}' >> {output}
+        echo "{input}" | tr ' ' '\n' | awk '{{split($0,a,"/"); print a[length(a)-3]"\t"$0}}' >> {output}
         """
 
 rule iterative_map_to_pan_LQ:
@@ -266,7 +269,7 @@ rule iterative_map_to_pan_LQ:
        config["out_dir"] + "/all_samples/pan_genome/all_novel.fasta",
        config["out_dir"] + "/all_samples/pan_genome/pan_genome.fasta"
     params:
-        map_to_pan_script=pipeline_dir + '/iterative_map_to_pan.py',
+        map_to_pan_script=mtp_pipeline_dir + '/iterative_map_to_pan.py',
         min_len=config['min_length'],
         out_dir=config["out_dir"] + "/all_samples/pan_genome/",
         queue=config['queue'],
@@ -277,7 +280,7 @@ rule iterative_map_to_pan_LQ:
         CONDA_ENV_DIR + '/iterative_map_to_pan.yml'
     shell:
         """
-         python {params.map_to_pan_script} {input.ref_genome} {input.ref_gff} {input.ref_proteins} {input.samples} {params.out_dir} --cpus {params.ppn} --min_len {params.min_len}
+         python {params.map_to_pan_script} {input.ref_genome} {input.ref_gff} {input.ref_proteins} {input.samples} {params.out_dir} --cpus {params.ppn} --min_len {params.min_len} --min_gap_break 100
         """
 
 rule novel_to_chunks:
@@ -373,7 +376,7 @@ rule install_EVM_dependencies:
     output:
         config["out_dir"] + '/EVM_dependencies.done'
     params:
-        EVM_annotation_snakefile=annotation_pipeline_dir + '/EVM_annotation.snakefile',
+        EVM_annotation_snakefile=annotation_mtp_pipeline_dir + '/EVM_annotation.snakefile',
         out_dir=config['out_dir'],
         augustus_dir=config['augustus_dir'],
         queue=config['queue'],
@@ -406,7 +409,7 @@ rule EVM_annotation:
         config["out_dir"] + "/all_samples/annotation/EVM.filter.rename.prot.fasta",
         config["out_dir"] + "/all_samples/annotation/EVM.filter.rename.trans.fasta"
     params:
-        EVM_annotation_snakefile=annotation_pipeline_dir + '/EVM_annotation.snakefile',
+        EVM_annotation_snakefile=annotation_mtp_pipeline_dir + '/EVM_annotation.snakefile',
         queue=config['queue'],
         jobs=int(config['max_jobs']/len(config['samples_info'])),
         annotation_dir=config["out_dir"] + "/all_samples/annotation",
@@ -805,7 +808,7 @@ rule detect_HQ_PAV:
     output:
         config["out_dir"] + "/HQ_samples/{sample}/map_to_pan/{sample}_PAV.tsv"
     params:
-        detect_pav_script=pipeline_dir + '/detect_gene_PAV_from_bed_cov.py',
+        detect_pav_script=mtp_pipeline_dir + '/detect_gene_PAV_from_bed_cov.py',
         min_frac_covered=config['HQ_min_cov'],
         queue=config['queue'],
         priority=config['priority'],
@@ -825,7 +828,7 @@ rule detect_LQ_PAV:
     output:
         config["out_dir"] + "/per_sample/{sample}/map_to_pan_{ena_ref}/{ena_ref}_PAV.tsv"
     params:
-        detect_pav_script=pipeline_dir + '/detect_gene_PAV_from_bed_cov.py',
+        detect_pav_script=mtp_pipeline_dir + '/detect_gene_PAV_from_bed_cov.py',
         min_depth=config['min_read_depth'],
         min_frac_covered=config['LQ_min_cov'],
         queue=config['queue'],
@@ -868,7 +871,7 @@ rule create_pan_PAV:
     output:
         config["out_dir"] + "/all_samples/pan_genome/pan_PAV.tsv"
     params:
-        create_PAV_matrix_script=pipeline_dir + '/create_PAV_matrix.py',
+        create_PAV_matrix_script=mtp_pipeline_dir + '/create_PAV_matrix.py',
         ref_name=config['reference_name'],
         queue=config['queue'],
         priority=config['priority'],
