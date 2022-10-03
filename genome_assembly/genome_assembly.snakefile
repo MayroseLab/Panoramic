@@ -65,25 +65,31 @@ rule all:
 def get_sample(wildcards):
     return config['samples_info'][wildcards.sample]['ena_ref']
 
-ena_fast_download_url = "https://raw.githubusercontent.com/wwood/ena-fast-download/master/ena-fast-download.py"
+kingfisher_git_url = "https://github.com/wwood/kingfisher-download"
+kingfisher_git_stable_commit = "cd7b2ed0c2488f10b91a1cf26ad3728ca26eba09"
 
 wildcard_constraints:
     sample="[^_]+"
 
-rule fetch_ena_fast_download_script:
+rule fetch_kingfisher:
     """
-    Download latest version on ena-fast-download.py
+    Get kingfisher code
     """
     output:
-        config["out_dir"] + "/ena-fast-download.py"
+        config["out_dir"] + "/kingfisher-download/bin/kingfisher"
     params:
-        ena_fast_download_url=ena_fast_download_url,
+        kingfisher_git_url=kingfisher_git_url,
+        out_dir=config["out_dir"] + "/kingfisher-download/",
+        kingfisher_git_stable_commit=kingfisher_git_stable_commit,
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR
     shell:
         """
-        wget {params.ena_fast_download_url} -O {output}
+        rm -rf {params.out_dir}
+        git clone {params.kingfisher_git_url} {params.out_dir}
+        cd {params.out_dir}
+        git checkout {params.kingfisher_git_stable_commit}
         """
 
 rule download_fastq:
@@ -91,7 +97,7 @@ rule download_fastq:
     Download reads data from ENA
     """
     input:
-        config["out_dir"] + "/ena-fast-download.py"
+        exe=config["out_dir"] + "/kingfisher-download/bin/kingfisher"
     output:
         config["out_dir"] + "/per_sample/{sample}/data/{ena_ref}_1.fastq.gz",
         config["out_dir"] + "/per_sample/{sample}/data/{ena_ref}_2.fastq.gz"
@@ -102,20 +108,11 @@ rule download_fastq:
         priority=config['priority'],
         logs_dir=LOGS_DIR
     conda:
-        CONDA_ENV_DIR + '/ena_download.yml'
+        CONDA_ENV_DIR + '/kingfisher.yml'
     shell:
         """
-        # find ssh key in conda env
-        ssh="$CONDA_PREFIX/etc/asperaweb_id_dsa.openssh"
-        # download (retry 3 times)
-        n=0
-        until [ "$n" -ge 3 ]
-        do
-            python {input} {params.ena_ref} --output_directory {params.sample_out_dir} --ssh-key $ssh && break
-            n=$((n+1)) 
-            echo "Download failed! Retry in 30 sec ($n/3)..."
-            sleep 30
-        done
+        cd {params.sample_out_dir}
+        {input.exe} get -m ena-ascp -r {params.ena_ref}
         """
 
 rule quality_trimming:
