@@ -757,6 +757,8 @@ else:
 
 if not config['transcripts_fasta']:
     config['transcripts_fasta'] = ''
+if not config['chimeraBuster_dir']:
+    config['chimeraBuster_dir'] = ''
 
 rule detect_chimeras:
     input:
