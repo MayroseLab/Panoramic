@@ -163,7 +163,7 @@ rule prep_annotation_yaml:
     pipeline of each sample
     """
     input:
-        genome=config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/ragtag.scaffolds.fasta",
+        genome=config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/ragtag.scaffold.fasta",
         ref_genome=config['reference_genome'],
         ref_gff=config['reference_annotation'],
         ref_cds=config['reference_cds'],
