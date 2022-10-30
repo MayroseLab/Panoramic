@@ -7,7 +7,7 @@ sample_name: <SAMPLE_NAME>
 out_dir: <OUT_DIR>
 
 # Repeat masking
-mask_genome: 1  # 1 - run EDTA, 0 - don't run
+mask_genome: 0  # 1 - run EDTA, 0 - don't run
 reference_cds: <REFERENCE_CDS>
 
 # Liftover
