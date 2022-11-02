@@ -1,14 +1,14 @@
-name: PGC_map_to_pan
+name: PGC_iterative_assembly
 # input/output
 samples_info_file: 
 hq_genomes_info_file: 
-out_dir:
+out_dir: 
 
 # Reference genome 
-reference_name:
-reference_genome:
-reference_annotation:
-reference_proteins:
+reference_name: 
+reference_genome: 
+reference_annotation: 
+reference_proteins: 
 id_simplify_function: "lambda x: x"
 
 # Reads pre processing (RPP)
@@ -16,15 +16,20 @@ trimming_modules: "SLIDINGWINDOW:5:15 MINLEN:40"
 merge_min_overlap: 10
 merge_max_mismatch_ratio: 0.2
 
+# Detect unmapped reads
+max_mapq: 10
+min_mismatch: 8
+max_qlen: 80
+
 # Assembly
 assembler: spades
-min_length: 500
-busco_set:
+min_length: 300
+busco_set: 
 
 # Annotation
-annotation_yml_template:
-transcripts:
-proteins:
+annotation_yml_template: 
+transcripts: 
+proteins: 
 chunk_size:
 
 # Annotation filtration

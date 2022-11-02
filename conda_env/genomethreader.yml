@@ -1,0 +1,5 @@
+name: genomeThreader
+channels:
+  - bioconda
+dependencies:
+  - genomethreader=1.7.1

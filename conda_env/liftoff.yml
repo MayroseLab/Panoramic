@@ -1,5 +1,5 @@
-name: bedops
+name: liftoff
 channels:
   - bioconda
 dependencies:
-  - bedops=2.4.39
+  - liftoff=1.6.1

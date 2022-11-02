@@ -1,29 +1,33 @@
 """
 This pipeline constructs a pan genome
-in the "map-to-pan" approach. It consists
+in the "iterative assembly" approach. It consists
 of the following general steps:
 1. Download fastq files from ena
-2. Assemble reads from each sample into
+2. Map reads from each sample to the reference
+   genome and extract unmapped reads
+3. Assemble unmapped reads from each sample into
    contigs
-3. Iteratively map contigs to reference
-   and adding novel sequences to create the
-   non-reference section of the pan genome
-4. Annotate the non-reference contigs
-5. Align reads from each sample to reference
-   + non-reference genes to determine gene
+4. Cluster contigs to create a set of nonreference
+   sequences
+5. Annotate the nonreference contigs
+6. Align reads from each sample to reference
+   + nonreference genes to determine gene
    presence/absence
-6. Summarize and create PAV matrix
+7. Summarize and create PAV matrix
 """
 
 import os
-mtp_pipeline_dir = os.path.dirname(os.path.realpath(workflow.snakefile))
+workflow_dir = os.path.dirname(os.path.realpath(workflow.snakefile))
+mtp_pipeline_dir = os.path.dirname(workflow_dir) + '/map_to_pan'
 utils_dir = os.path.dirname(mtp_pipeline_dir) + '/util'
+genome_assembly_dir = os.path.dirname(workflow_dir) + '/genome_assembly'
+
 import sys
 sys.path.append(utils_dir)
 from snakemakeUtils import *
 from collections import OrderedDict
 
-PIPELINE = 'Map-to-pan'
+PIPELINE = 'Iterative-assembly'
 
 # print Welcome message
 ver = get_git_commit()
@@ -94,12 +98,12 @@ onerror:
 #                RULES              |
 #------------------------------------
 
-localrules: all, prep_annotation_chunks_tsv, prep_annotation_yaml, calculate_n_chunks
+localrules: all_iterative_assembly, prep_annotation_chunks_tsv, prep_annotation_yaml, calculate_n_chunks
 
 n_samples = len(config['samples_info'])
 last_sample = list(config['samples_info'].keys())[-1]
 last_sample_ena = config['samples_info'][last_sample]['ena_ref']
-rule all_map_to_pan:
+rule all_iterative_assembly:
     input:
         config["out_dir"] + "/all_samples/pan_genome/pan_PAV.tsv",
         config["out_dir"] + "/all_samples/pan_genome/pan_genome.fasta",
@@ -123,12 +127,77 @@ def get_hq_sample_proteins(wildcards):
 wildcard_constraints:
     sample="[^_]+"
 
-"""
-Download reads, preprocess, assemble,
-and scaffold all input genomes using
-a dedicated pipeline.
-"""
-include: "../genome_assembly/genome_assembly.snakefile"
+kingfisher_git_url = "https://github.com/wwood/kingfisher-download"
+kingfisher_git_stable_commit = "cd7b2ed0c2488f10b91a1cf26ad3728ca26eba09"
+
+rule fetch_kingfisher:
+    """
+    Get kingfisher code
+    """
+    output:
+        config["out_dir"] + "/kingfisher-download/bin/kingfisher"
+    params:
+        kingfisher_git_url=kingfisher_git_url,
+        out_dir=config["out_dir"] + "/kingfisher-download/",
+        kingfisher_git_stable_commit=kingfisher_git_stable_commit,
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    shell:
+        """
+        rm -rf {params.out_dir}
+        git clone {params.kingfisher_git_url} {params.out_dir}
+        cd {params.out_dir}
+        git checkout {params.kingfisher_git_stable_commit}
+        """
+
+rule download_fastq:
+    """
+    Download reads data from ENA
+    """
+    input:
+        exe=config["out_dir"] + "/kingfisher-download/bin/kingfisher"
+    output:
+        config["out_dir"] + "/per_sample/{sample}/data/{ena_ref}_1.fastq.gz",
+        config["out_dir"] + "/per_sample/{sample}/data/{ena_ref}_2.fastq.gz"
+    params:
+        sample_out_dir=config["out_dir"] + "/per_sample/{sample}/data",
+        ena_ref=get_sample,
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    conda:
+        CONDA_ENV_DIR + '/kingfisher.yml'
+    shell:
+        """
+        cd {params.sample_out_dir}
+        {input.exe} get -m ena-ascp -r {params.ena_ref}
+        """
+
+rule quality_trimming:
+    """
+    Trim/remove low quality reads
+    """
+    input:
+        r1=config["out_dir"] + "/per_sample/{sample}/data/{ena_ref}_1.fastq.gz",
+        r2=config["out_dir"] + "/per_sample/{sample}/data/{ena_ref}_2.fastq.gz"
+    output:
+        r1_paired=config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}_1_clean_paired.fastq.gz",
+        r1_unpaired=config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}_1_clean_unpaired.fastq.gz",
+        r2_paired=config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}_2_clean_paired.fastq.gz",
+        r2_unpaired=config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}_2_clean_unpaired.fastq.gz"
+    params:
+        trimming_modules=config['trimming_modules'],
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR,
+        ppn=config['ppn']
+    conda:
+        CONDA_ENV_DIR + '/trimmomatic.yml'
+    shell:
+        """
+        trimmomatic PE {input.r1} {input.r2} {output.r1_paired} {output.r1_unpaired} {output.r2_paired} {output.r2_unpaired} {params.trimming_modules} -threads {params.ppn}
+        """
 
 rule simplify_ref_gff_ID:
     """
@@ -175,6 +244,256 @@ rule remove_ref_alt_splicing:
         """
         python {params.longest_trans_script} {input.gff} {output.gff} {input.prot_fasta} {params.min_protein} ID
         """
+
+rule copy_reference:
+    """
+    Make a copy of the input ref genome
+    """
+    input:
+       config['reference_genome']
+    output:
+       config["out_dir"] + "/all_samples/ref/" + config['reference_name'] + '_genome.fasta'
+    params:
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    shell:
+        """
+        cp {input} {output}
+        """
+
+rule index_reference:
+    """
+    Index reference genome for BWA
+    """
+    input:
+        config["out_dir"] + "/all_samples/ref/" + config['reference_name'] + '_genome.fasta'
+    output:
+        config["out_dir"] + "/all_samples/ref/" + config['reference_name'] + '_genome.fasta.bwt'
+    params:
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    conda:
+        CONDA_ENV_DIR + '/bwa.yml'
+    shell:
+        """
+        bwa index {input}
+        """
+
+rule map_reads_to_ref:
+    """
+    Map clean reads to ref genome
+    """
+    input:
+        ref_genome=config["out_dir"] + "/all_samples/ref/" + config['reference_name'] + '_genome.fasta',
+        ref_genome_index=config["out_dir"] + "/all_samples/ref/" + config['reference_name'] + '_genome.fasta.bwt',
+        r1_paired=config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}_1_clean_paired.fastq.gz",
+        r1_unpaired=config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}_1_clean_unpaired.fastq.gz",
+        r2_paired=config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}_2_clean_paired.fastq.gz",
+        r2_unpaired=config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}_2_clean_unpaired.fastq.gz"
+    output:
+        paired_map=config["out_dir"] + "/per_sample/{sample}/map_to_ref_{ena_ref}/{ena_ref}_paired.sam",
+        r1_unpaired_map=config["out_dir"] + "/per_sample/{sample}/map_to_ref_{ena_ref}/{ena_ref}_unpaired_1.sam",
+        r2_unpaired_map=config["out_dir"] + "/per_sample/{sample}/map_to_ref_{ena_ref}/{ena_ref}_unpaired_2.sam"
+    params:
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR,
+        ppn=config['ppn']
+    conda:
+        CONDA_ENV_DIR + '/bwa.yml'
+    shell:
+        """
+        bwa mem {input.ref_genome} {input.r1_paired} {input.r2_paired} -t {params.ppn} > {output.paired_map}
+        bwa mem {input.ref_genome} {input.r1_unpaired} -t {params.ppn} > {output.r1_unpaired_map}
+        bwa mem {input.ref_genome} {input.r2_unpaired} -t {params.ppn} > {output.r2_unpaired_map}
+        """
+
+rule extract_unmapped:
+    """
+    Extract reads unmapped to reference
+    """
+    input:
+        paired_map=config["out_dir"] + "/per_sample/{sample}/map_to_ref_{ena_ref}/{ena_ref}_paired.sam",
+        r1_unpaired_map=config["out_dir"] + "/per_sample/{sample}/map_to_ref_{ena_ref}/{ena_ref}_unpaired_1.sam",
+        r2_unpaired_map=config["out_dir"] + "/per_sample/{sample}/map_to_ref_{ena_ref}/{ena_ref}_unpaired_2.sam"
+    output:
+        paired_um1=config["out_dir"] + "/per_sample/{sample}/map_to_ref_{ena_ref}/{ena_ref}_paired.um_1.fastq",
+        paired_um2=config["out_dir"] + "/per_sample/{sample}/map_to_ref_{ena_ref}/{ena_ref}_paired.um_2.fastq",
+        unpaired_um12=config["out_dir"] + "/per_sample/{sample}/map_to_ref_{ena_ref}/{ena_ref}_unpaired.um_12.fastq",
+        unpaired_um1=config["out_dir"] + "/per_sample/{sample}/map_to_ref_{ena_ref}/{ena_ref}_unpaired.um_1.fastq",
+        unpaired_um2=config["out_dir"] + "/per_sample/{sample}/map_to_ref_{ena_ref}/{ena_ref}_unpaired.um_2.fastq"
+    params:
+        max_mapq=config['max_mapq'],
+        min_mismatch=config['min_mismatch'],
+        max_qlen=config['max_qlen'],
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR,
+        ppn=config['ppn']
+    conda:
+        CONDA_ENV_DIR + '/samtools.yml'
+    shell:
+        """
+        samtools view -h -e 'flag.unmap || mapq <= {params.max_mapq} || [NM] >= {params.min_mismatch} || qlen <= {params.max_qlen}' -@ {params.ppn} {input.paired_map} | samtools fastq -1 {output.paired_um1} -2 {output.paired_um2} -s {output.unpaired_um12} -@ {params.ppn}
+        samtools view -h -e 'flag.unmap || mapq <= {params.max_mapq} || [NM] >= {params.min_mismatch} || qlen <= {params.max_qlen}' {input.r1_unpaired_map} -@ {params.ppn} | samtools fastq -0 {output.unpaired_um1} -@ {params.ppn}
+        samtools view -h -e 'flag.unmap || mapq <= {params.max_mapq} || [NM] >= {params.min_mismatch} || qlen <= {params.max_qlen}' {input.r2_unpaired_map} -@ {params.ppn} | samtools fastq -0 {output.unpaired_um2} -@ {params.ppn}
+        """
+
+rule merge_paired_unmapped:
+    """
+    Merge paired reads unmapped to reference
+    """
+    input:
+        paired_um1=config["out_dir"] + "/per_sample/{sample}/map_to_ref_{ena_ref}/{ena_ref}_paired.um_1.fastq",
+        paired_um2=config["out_dir"] + "/per_sample/{sample}/map_to_ref_{ena_ref}/{ena_ref}_paired.um_2.fastq"
+    output:
+        config["out_dir"] + "/per_sample/{sample}/map_to_ref_{ena_ref}/{ena_ref}_paired.um.extendedFrags.fastq.gz",
+        config["out_dir"] + "/per_sample/{sample}/map_to_ref_{ena_ref}/{ena_ref}_paired.um.notCombined_1.fastq.gz",
+        config["out_dir"] + "/per_sample/{sample}/map_to_ref_{ena_ref}/{ena_ref}_paired.um.notCombined_2.fastq.gz"
+    params:
+        merge_out_dir=config["out_dir"] + "/per_sample/{sample}/map_to_ref_{ena_ref}",
+        merge_min_overlap=config['merge_min_overlap'],
+        merge_max_mismatch_ratio=config['merge_max_mismatch_ratio'],
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR,
+        ppn=config['ppn']
+    conda:
+        CONDA_ENV_DIR + '/flash.yml'
+    shell:
+        """
+        flash {input.paired_um1} {input.paired_um2} -d {params.merge_out_dir} -m {params.merge_min_overlap} -x {params.merge_max_mismatch_ratio} -z -t {params.ppn} -o {wildcards.ena_ref}_paired.um
+        """
+if config['assembler'] == 'spades':
+
+    rule assemble_unmapped:
+        """
+        Assemble unmapped reads into contigs
+        """
+        input:
+            merged=config["out_dir"] + "/per_sample/{sample}/map_to_ref_{ena_ref}/{ena_ref}_paired.um.extendedFrags.fastq.gz",
+            r1_paired=config["out_dir"] + "/per_sample/{sample}/map_to_ref_{ena_ref}/{ena_ref}_paired.um.notCombined_1.fastq.gz",
+            r2_paired=config["out_dir"] + "/per_sample/{sample}/map_to_ref_{ena_ref}/{ena_ref}_paired.um.notCombined_2.fastq.gz",
+            unpaired_um12=config["out_dir"] + "/per_sample/{sample}/map_to_ref_{ena_ref}/{ena_ref}_unpaired.um_12.fastq",
+            unpaired_um1=config["out_dir"] + "/per_sample/{sample}/map_to_ref_{ena_ref}/{ena_ref}_unpaired.um_1.fastq",
+            unpaired_um2=config["out_dir"] + "/per_sample/{sample}/map_to_ref_{ena_ref}/{ena_ref}_unpaired.um_2.fastq"
+        output:
+            config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contigs.fasta"
+        params:
+            out_dir=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}",
+            ppn=config['ppn'],
+            queue=config['queue'],
+            priority=config['priority'],
+            logs_dir=LOGS_DIR
+        conda:
+            CONDA_ENV_DIR + '/spades.yml'
+        shell:
+            """
+            spades.py -o {params.out_dir} --pe1-1 {input.r1_paired} --pe1-2 {input.r2_paired} --pe1-m {input.merged} --pe1-s {input.unpaired_um1} --pe1-s {input.unpaired_um2} --pe1-s {input.unpaired_um12} --threads {params.ppn} --phred-offset 33
+            """
+
+elif config['assembler'] == 'megahit':
+    rule assemble_unmapped:
+        """
+        Assemble unmapped reads into contigs
+        """
+        input:
+            merged=config["out_dir"] + "/per_sample/{sample}/map_to_ref_{ena_ref}/{ena_ref}_paired.um.extendedFrags.fastq.gz",
+            r1_paired=config["out_dir"] + "/per_sample/{sample}/map_to_ref_{ena_ref}/{ena_ref}_paired.um.notCombined_1.fastq.gz",
+            r2_paired=config["out_dir"] + "/per_sample/{sample}/map_to_ref_{ena_ref}/{ena_ref}_paired.um.notCombined_2.fastq.gz",
+            unpaired_um12=config["out_dir"] + "/per_sample/{sample}/map_to_ref_{ena_ref}/{ena_ref}_unpaired.um_12.fastq",
+            unpaired_um1=config["out_dir"] + "/per_sample/{sample}/map_to_ref_{ena_ref}/{ena_ref}_unpaired.um_1.fastq",
+            unpaired_um2=config["out_dir"] + "/per_sample/{sample}/map_to_ref_{ena_ref}/{ena_ref}_unpaired.um_2.fastq"
+
+        output:
+            config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contigs.fasta"
+        conda:
+            CONDA_ENV_DIR + '/megahit.yml'
+        params:
+            out_dir=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/megahit_out",
+            ppn=config['ppn'],
+            queue=config['queue'],
+            priority=config['priority'],
+            logs_dir=LOGS_DIR
+        shell:
+            """
+            if [ -d "{params.out_dir}" ]
+            then
+                rm -rf {params.out_dir}
+            fi
+            megahit -1 {input.r1_paired} -2 {input.r2_paired} -r {input.merged},{input.unpaired_um12},{input.unpaired_um1},{input.unpaired_um2} -t {params.ppn} -o {params.out_dir} --min-contig-len 1
+            ln {params.out_dir}/final.contigs.fa {output}
+            """
+
+elif config['assembler'] == 'minia':
+    rule fetch_minia:
+        """
+        Download the gatb-minia-pipeline,
+        then checkout a specific version
+        and replace the main script with
+        Panoramic's modified version.
+        """
+        output:
+            config["out_dir"] + "/gatb-minia-pipeline/gatb"
+        params:
+            queue=config['queue'],
+            priority=config['priority'],
+            logs_dir=LOGS_DIR,
+            out_dir=config["out_dir"],
+            gatb_modified=os.path.join(genome_assembly_dir,'gatb')
+        shell:
+            """
+            cd {params.out_dir}
+            git clone --recursive https://github.com/GATB/gatb-minia-pipeline
+            cd {params.out_dir}/gatb-minia-pipeline
+            git checkout 831ba4e
+            cp {params.gatb_modified} ./
+            """
+
+    rule create_single_reads_list:
+        """
+        Create a file with merged and unpaired files for Minia
+        """
+        input:
+            unpaired_um12=config["out_dir"] + "/per_sample/{sample}/map_to_ref_{ena_ref}/{ena_ref}_unpaired.um_12.fastq",
+            unpaired_um1=config["out_dir"] + "/per_sample/{sample}/map_to_ref_{ena_ref}/{ena_ref}_unpaired.um_1.fastq",
+            unpaired_um2=config["out_dir"] + "/per_sample/{sample}/map_to_ref_{ena_ref}/{ena_ref}_unpaired.um_2.fastq",
+            merged=config["out_dir"] + "/per_sample/{sample}/map_to_ref_{ena_ref}/{ena_ref}_paired.um.extendedFrags.fastq.gz"
+        output:
+            config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/single_reads.list"
+        params:
+            queue=config['queue'],
+            priority=config['priority'],
+            logs_dir=LOGS_DIR
+        shell:
+            """
+            echo {input} | tr ' ' '\\n' > {output}
+            """
+
+    rule assemble_unmapped:
+        """
+        De novo assembly of unmapped reads into contigs using Minia
+        """
+        input:
+            minia=config["out_dir"] + "/gatb-minia-pipeline/gatb",
+            r1_paired=config["out_dir"] + "/per_sample/{sample}/map_to_ref_{ena_ref}/{ena_ref}_paired.um.notCombined_1.fastq.gz",
+            r2_paired=config["out_dir"] + "/per_sample/{sample}/map_to_ref_{ena_ref}/{ena_ref}_paired.um.notCombined_2.fastq.gz",
+            single_reads_list=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/single_reads.list"
+        output:
+            config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contigs.fasta"
+        params:
+            out_dir=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}",
+            ppn=config['ppn'],
+            queue=config['queue'],
+            priority=config['priority'],
+            logs_dir=LOGS_DIR
+        shell:
+            """
+            {input.minia} -1 {input.r1_paired} -2 {input.r2_paired} -s {input.single_reads_list} --nb-cores {params.ppn} --no-scaffolding -o {params.out_dir}/assembly --cleanup
+            ln {params.out_dir}/assembly_final.contigs.fa {output}
+            """
 
 rule iterative_map_to_pan_HQ:
     """
@@ -241,7 +560,7 @@ rule prep_tsv_for_LQ_samples:
     from assembled LQ samples
     """
     input:
-        expand(config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/ragtag.scaffold.fasta", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()])
+        expand(config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contigs.fasta", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()])
     output:
         config["out_dir"] + "/all_samples/pan_genome/samples.tsv"
     params:
@@ -251,7 +570,7 @@ rule prep_tsv_for_LQ_samples:
     shell:
         """
         echo "sample\tgenome_fasta" > {output}
-        echo "{input}" | tr ' ' '\n' | awk '{{split($0,a,"/"); print a[length(a)-3]"\t"$0}}' >> {output}
+        echo "{input}" | tr ' ' '\n' | awk '{{split($0,a,"/"); print a[length(a)-2]"\t"$0}}' >> {output}
         """
 
 rule iterative_map_to_pan_LQ:
@@ -306,7 +625,6 @@ rule novel_to_chunks:
         """
         python {params.chunks_script} {input} {output.fasta} {params.chunk_size}
         """
-
 
 rule aggregate_annotation_evidence:
     """
@@ -932,7 +1250,6 @@ rule create_report_notebook:
     input:
         pav_tsv=config["out_dir"] + "/all_samples/pan_genome/pan_PAV.tsv",
         stepwise_tsv=config["out_dir"] + "/all_samples/stats/stepwise_stats.tsv",
-        assembly_stats_tsv=config["out_dir"] + "/all_samples/stats/assembly_stats.tsv",
         proteins_fasta=config["out_dir"] + "/all_samples/pan_genome/pan_proteome.fasta",
     output:
         config["out_dir"] + "/all_samples/stats/report.ipynb"
@@ -940,12 +1257,14 @@ rule create_report_notebook:
         ref_name=config['reference_name'],
         conf=config_path,
         nb_template=pan_genome_report_dir + '/report_template.ipynb',
+        assembly_stats_dummy=config["out_dir"] + "/all_samples/stats/assembly_stats.tsv",
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR,
     shell:
         """
-        sed -e 's|<PIPELINE>|Panoramic map-to-pan|' -e 's|<CONF>|{params.conf}|' -e 's|<PAV_TSV>|{input.pav_tsv}|' -e 's|<SYEPWISE_TSV>|{input.stepwise_tsv}|' -e 's|<REF_NAME>|{params.ref_name}|' -e 's|<PROT_FASTA>|{input.proteins_fasta}|' -e 's|<STATS_TSV>|{input.assembly_stats_tsv}|' {params.nb_template} > {output}
+        echo -e "Read length\\tInput bases\\tClean bases\\tBases in merged reads\\tAssembly\\t# contigs (>= 0 bp)\\t# contigs (>= 1000 bp)\\t# contigs (>= 5000 bp)\\t# contigs (>= 10000 bp)\\t# contigs (>= 25000 bp)\\t# contigs (>= 50000 bp)\\tTotal length (>= 0 bp)\\tTotal length (>= 1000 bp)\\tTotal length (>= 5000 bp)\\tTotal length (>= 10000 bp)\\tTotal length (>= 25000 bp)\\tTotal length (>= 50000 bp)\\t# contigs\\tLargest contig\\tTotal length\\tGC (%)\\tN50\\tN75\\tL50\\tL75\\t# N's per 100 kbp\\t% Complete BUSCOs\\t% unmapped (Chr0)\\tQUAST report" > {params.assembly_stats_dummy}
+        sed -e 's|<PIPELINE>|Panoramic iterative-mapping|' -e 's|<CONF>|{params.conf}|' -e 's|<PAV_TSV>|{input.pav_tsv}|' -e 's|<SYEPWISE_TSV>|{input.stepwise_tsv}|' -e 's|<REF_NAME>|{params.ref_name}|' -e 's|<PROT_FASTA>|{input.proteins_fasta}|' -e 's|<STATS_TSV>|{params.assembly_stats_dummy}|' {params.nb_template} > {output}
         """
 
 rule create_report_html:

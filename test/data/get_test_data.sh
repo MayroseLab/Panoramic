@@ -9,6 +9,7 @@ sed -i -e 's/>.*chromosome=\([^]]*\)]/>chr\1/' -e 's/>ref|NC_001224|.*/>mt/' S28
 head -23076 saccharomyces_cerevisiae_R64-2-1_20150113.gff > saccharomyces_cerevisiae_R64-2-1_20150113.gff.tmp
 mv saccharomyces_cerevisiae_R64-2-1_20150113.gff.tmp saccharomyces_cerevisiae_R64-2-1_20150113.gff
 sed -i 's/chrmt/mt/g' saccharomyces_cerevisiae_R64-2-1_20150113.gff
+sed -i -e 's/%3B//g' -e 's/%3D//g' saccharomyces_cerevisiae_R64-2-1_20150113.gff
 sed -i 's/ .*/_mRNA/' orf_coding_all_R64-2-1_20150113.fasta
 sed -i 's/ .*/_mRNA/' orf_trans_all_R64-2-1_20150113.fasta
 

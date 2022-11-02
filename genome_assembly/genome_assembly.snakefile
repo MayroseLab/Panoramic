@@ -57,7 +57,7 @@ localrules: all
 rule all:
     input:
         assembly_stats_tsv=config["out_dir"] + "/all_samples/stats/assembly_stats.tsv",
-        assemblies=expand(config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/ragtag.scaffolds.fasta", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()]),
+        assemblies=expand(config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/ragtag.scaffold.fasta", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()]),
         r1=expand(config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}_1_clean_paired.fastq.gz", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()]),
         r2=expand(config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}_2_clean_paired.fastq.gz", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()])
 
@@ -65,25 +65,31 @@ rule all:
 def get_sample(wildcards):
     return config['samples_info'][wildcards.sample]['ena_ref']
 
-ena_fast_download_url = "https://raw.githubusercontent.com/wwood/ena-fast-download/master/ena-fast-download.py"
+kingfisher_git_url = "https://github.com/wwood/kingfisher-download"
+kingfisher_git_stable_commit = "cd7b2ed0c2488f10b91a1cf26ad3728ca26eba09"
 
 wildcard_constraints:
     sample="[^_]+"
 
-rule fetch_ena_fast_download_script:
+rule fetch_kingfisher:
     """
-    Download latest version on ena-fast-download.py
+    Get kingfisher code
     """
     output:
-        config["out_dir"] + "/ena-fast-download.py"
+        config["out_dir"] + "/kingfisher-download/bin/kingfisher"
     params:
-        ena_fast_download_url=ena_fast_download_url,
+        kingfisher_git_url=kingfisher_git_url,
+        out_dir=config["out_dir"] + "/kingfisher-download/",
+        kingfisher_git_stable_commit=kingfisher_git_stable_commit,
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR
     shell:
         """
-        wget {params.ena_fast_download_url} -O {output}
+        rm -rf {params.out_dir}
+        git clone {params.kingfisher_git_url} {params.out_dir}
+        cd {params.out_dir}
+        git checkout {params.kingfisher_git_stable_commit}
         """
 
 rule download_fastq:
@@ -91,7 +97,7 @@ rule download_fastq:
     Download reads data from ENA
     """
     input:
-        config["out_dir"] + "/ena-fast-download.py"
+        exe=config["out_dir"] + "/kingfisher-download/bin/kingfisher"
     output:
         config["out_dir"] + "/per_sample/{sample}/data/{ena_ref}_1.fastq.gz",
         config["out_dir"] + "/per_sample/{sample}/data/{ena_ref}_2.fastq.gz"
@@ -102,21 +108,11 @@ rule download_fastq:
         priority=config['priority'],
         logs_dir=LOGS_DIR
     conda:
-        CONDA_ENV_DIR + '/ena_download.yml'
+        CONDA_ENV_DIR + '/kingfisher.yml'
     shell:
         """
-        # find ssh key in conda env
-        env=`grep -l aspera ./.snakemake/conda/*.yaml | xargs basename | sed 's/\.yaml//'`
-        ssh="./.snakemake/conda/$env/etc/asperaweb_id_dsa.openssh"
-        # download (retry 3 times)
-        n=0
-        until [ "$n" -ge 3 ]
-        do
-            python {input} {params.ena_ref} --output_directory {params.sample_out_dir} --ssh-key $ssh && break
-            n=$((n+1)) 
-            echo "Download failed! Retry in 30 sec ($n/3)..."
-            sleep 30
-        done
+        cd {params.sample_out_dir}
+        {input.exe} get -m ena-ascp -r {params.ena_ref}
         """
 
 rule quality_trimming:
@@ -216,7 +212,10 @@ if config['assembler'] == 'spades':
 elif config['assembler'] == 'minia':
     rule fetch_minia:
         """
-        Download latest version of gat-minia-pipeline
+        Download the gatb-minia-pipeline,
+        then checkout a specific version
+        and replace the main script with
+        Panoramic's modified version.
         """
         output:
             config["out_dir"] + "/gatb-minia-pipeline/gatb"
@@ -224,11 +223,15 @@ elif config['assembler'] == 'minia':
             queue=config['queue'],
             priority=config['priority'],
             logs_dir=LOGS_DIR,
-            out_dir=config["out_dir"]
+            out_dir=config["out_dir"],
+            gatb_modified=os.path.join(genome_assembly_dir,'gatb')
         shell:
             """
             cd {params.out_dir}
             git clone --recursive https://github.com/GATB/gatb-minia-pipeline
+            cd {params.out_dir}/gatb-minia-pipeline
+            git checkout 831ba4e
+            cp {params.gatb_modified} ./
             """
 
     rule create_single_reads_list:
@@ -269,7 +272,7 @@ elif config['assembler'] == 'minia':
             logs_dir=LOGS_DIR
         shell:
             """
-            {input.minia} -1 {input.r1_paired} -2 {input.r2_paired} -s {input.single_reads_list} --nb-cores {params.ppn} --no-scaffolding -o {params.out_dir}/assembly
+            {input.minia} -1 {input.r1_paired} -2 {input.r2_paired} -s {input.single_reads_list} --nb-cores {params.ppn} --no-scaffolding -o {params.out_dir}/assembly --cleanup
             ln {params.out_dir}/assembly_final.contigs.fa {output}
             """
 
@@ -334,9 +337,9 @@ rule ref_guided_assembly:
         contigs=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contigs_filter.fasta",
         ref_genome=config['reference_genome'],
     output:
-        corrected=config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/contigs_filter.corrected.fasta",
-        pm=config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/ragtag.scaffolds.fasta",
-        pm_agp=config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/ragtag.scaffolds.agp"
+        corrected=config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/ragtag.correct.fasta",
+        pm=config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/ragtag.scaffold.fasta",
+        pm_agp=config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/ragtag.scaffold.agp"
     params:
         out_dir=config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}",
         queue=config['queue'],
@@ -357,7 +360,7 @@ rule assembly_busco:
     Run BUSCO on assembly
     """
     input:
-        config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/ragtag.scaffolds.fasta"
+        config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/ragtag.scaffold.fasta"
     output:
        config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/BUSCO/short_summary.BUSCO.txt"
     params:
@@ -382,7 +385,7 @@ rule assembly_quast:
     Run QUAST on filtered assembly to get assembly stats and QA
     """
     input:
-        contigs=config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/contigs_filter.corrected.fasta",
+        contigs=config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/ragtag.correct.fasta",
     output:
         config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/QUAST/report.html",
         config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/QUAST/report.tsv"
@@ -441,7 +444,7 @@ rule prep_for_collect_stats:
     input:
         quast=expand(config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/QUAST/report.tsv", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()]),
         busco=expand(config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/BUSCO/short_summary.BUSCO.txt", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()]),
-        ragtag=expand(config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/ragtag.scaffolds.fasta", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()]),
+        ragtag=expand(config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/ragtag.scaffold.fasta", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()]),
         data_stats=expand(config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}.read_stats.tsv", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()])
     output:
         config["out_dir"] + "/all_samples/stats/assembly_stats_files.tsv"

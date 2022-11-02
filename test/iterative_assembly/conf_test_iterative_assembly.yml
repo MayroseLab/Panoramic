@@ -1,21 +1,25 @@
-name: PGC_de_novo
+name: PGC_map_to_pan
 # input/output
-samples_info_file: Panoramic/test/de_novo/LQ_samples_info_de_novo.tsv
-hq_genomes_info_file: Panoramic/test/de_novo/HQ_samples_info_de_novo.tsv
-out_dir: Panoramic/test/de_novo/RESULT
+samples_info_file: Panoramic/test/map_to_pan/LQ_samples_info_map_to_pan.tsv
+hq_genomes_info_file: Panoramic/test/map_to_pan/HQ_samples_info_map_to_pan.tsv
+out_dir: Panoramic/test/map_to_pan/RESULT
 
-# Reference genome
+# Reference genome 
 reference_name: S288C
 reference_genome: Panoramic/test/data/S288C_reference_sequence_R64-2-1_20150113.fsa
 reference_annotation: Panoramic/test/data/saccharomyces_cerevisiae_R64-2-1_20150113.gff
 reference_proteins: Panoramic/test/data/orf_trans_all_R64-2-1_20150113.fasta
-reference_cds: Panoramic/test/data/orf_coding_all_R64-2-1_20150113.fasta
-reference_transcripts: Panoramic/test/data/orf_coding_all_R64-2-1_20150113.fasta
+id_simplify_function: "lambda x: x"
 
 # Reads pre processing (RPP)
 trimming_modules: "SLIDINGWINDOW:5:15 MINLEN:40"
 merge_min_overlap: 10
 merge_max_mismatch_ratio: 0.2
+
+# Detect unmapped reads
+max_mapq: 10
+min_mismatch: 8
+max_qlen: 80
 
 # Assembly
 assembler: spades
@@ -26,9 +30,16 @@ busco_set: saccharomycetes_odb10
 transcripts: Panoramic/test/data/orf_coding_all_R64-2-1_20150113.fasta   # all transcripts fasta files, separated by commas (including ref)
 proteins: Panoramic/test/data/orf_trans_all_R64-2-1_20150113.fasta      # all proteins fasta files, separated by commas (including ref)
 annotation_yml_template: Panoramic/test/EVM_annotation_template.yml
+chunk_size: 1000000
 
 # Annotation filtration
 min_protein: 50
+similarity_threshold_proteins: 0.95
+
+# gene loss detection
+HQ_min_cov: 0.7
+LQ_min_cov: 0.4
+min_read_depth: 5
 
 # Environment
 queue:
@@ -36,4 +47,4 @@ priority:
 ppn:
 max_ram:
 max_jobs:
-cluster_wrapper: ""
+cluster_wrapper:

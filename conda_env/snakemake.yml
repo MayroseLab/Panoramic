@@ -3,5 +3,5 @@ channels:
   - conda-forge
   - bioconda
 dependencies:
-  - snakemake=5.30.1
+  - snakemake=7.16.0
   - gitpython

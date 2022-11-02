@@ -1,0 +1,50 @@
+# NOTE: if running the EVM pipeline as part of Panoramic, DO NOT modify values wrapped in <>
+name: EVM-annotation
+
+# input/output
+input_genome: <INPUT_GENOME>
+sample_name: <SAMPLE_NAME>
+out_dir: <OUT_DIR>
+
+# Repeat masking
+mask_genome: 0  # 1 - run EDTA, 0 - don't run
+reference_cds: <REFERENCE_CDS>
+
+# Liftover
+reference_liftover: <REFERENCE_LIFTOVER>   # 1- perform reference genes liftover, 0 - skip
+reference_gff: <REFERENCE_GFF>
+reference_fasta: <REFERENCE_FASTA>
+liftover_weight: 20
+
+# Ab-initio prediction
+augustus_species: saccharomyces_cerevisiae_S288C
+glimmerhmm_species: 
+snap_species: 
+ab-initio_weight: 1
+
+# Transcript evidence
+transcripts_fasta: <TRANSCRIPTS_FASTA>
+transcripts_weight: 10
+
+# Protein evidence
+proteins_fasta: <PROTEINS_FASTA>
+proteins_weight: 5
+
+# EVM partitioning
+segment_size: 1000000
+overlap_size: 10000
+
+# Split chimeras
+split_chimeras: 0       # 1 - run chimeraBuster, 0 -don't run
+chimeraBuster_dir: 
+
+# Annotation filtration
+min_protein: 50
+max_AED: 0.99
+
+# Environment
+queue: <QUEUE>
+priority: <PRIORITY>
+ppn: <PPN>
+max_ram: <MAX_RAM>
+max_jobs: <MAX_JOBS>

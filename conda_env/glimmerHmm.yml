@@ -1,0 +1,6 @@
+name: glimmerHmm
+channels:
+  - bioconda
+dependencies:
+  - glimmerhmm=3.0.4
+

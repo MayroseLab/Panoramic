@@ -1,6 +1,7 @@
-name: busco
+name: augustus
 channels:
   - conda-forge
   - bioconda
 dependencies:
-  - busco=5.4.2
+  - augustus=3.4.0
+

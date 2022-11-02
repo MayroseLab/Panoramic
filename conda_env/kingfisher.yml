@@ -1,0 +1,22 @@
+name: kingfisher
+channels:
+  - conda-forge
+  - bioconda
+  - rpetit3
+  - defaults
+dependencies:
+  - python>=3.9
+  - pigz
+  - extern
+  - curl
+  - sra-tools
+  - pandas
+  - requests
+  - aria2>=1.36.0
+  - sracat
+  - nose # For testing only
+  - bird_tool_utils_python
+  - awscli
+  - pyarrow
+  - tqdm
+  - aspera-connect=3.9.6

@@ -1,5 +1,5 @@
-name: bedops
+name: SNAP
 channels:
   - bioconda
 dependencies:
-  - bedops=2.4.39
+  - snap=2013_11_29
