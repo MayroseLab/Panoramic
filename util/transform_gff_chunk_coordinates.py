@@ -28,7 +28,14 @@ with open(in_bed) as f:
     chunks[chunk].add(Interval(start,end,name))
 
 db_path = in_gff + '.db'
-gff_db = gffutils.create_db(in_gff, dbfn=db_path, force=True, merge_strategy='create_unique')
+try:
+  gff_db = gffutils.create_db(in_gff, dbfn=db_path, force=True, merge_strategy='create_unique')
+except ValueError:
+  # input gff is empty - create empty output gff and exit
+  with open(out_gff, 'w') as fo:
+    print('##gff-version 3', file=fo)
+  sys.exit(0)
+  
 gff_db = gffutils.FeatureDB(db_path, keep_order=True)
 
 def gff_feature_to_list(feat):

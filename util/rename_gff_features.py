@@ -11,12 +11,19 @@ import gffutils
 in_gff = sys.argv[1]
 out_gff = sys.argv[2]
 pref = sys.argv[3]
+id_map_out = out_gff + '.id_map.tsv'
 
 db_path = in_gff + '.db'
-gff_db = gffutils.create_db(in_gff, dbfn=db_path, force=True, merge_strategy='create_unique')
+try:
+  gff_db = gffutils.create_db(in_gff, dbfn=db_path, force=True, merge_strategy='create_unique')
+except ValueError:
+  # input gff is empty - create empty output gff and table, then exit
+  with open(out_gff,'w') as go, open(id_map_out,'w') as mo:
+    print('##gff-version 3', file=go)
+  sys.exit(0)
+
 gff_db = gffutils.FeatureDB(db_path, keep_order=True)
 
-id_map_out = out_gff + '.id_map.tsv'
 i = 1
 with open(out_gff,'w') as go, open(id_map_out,'w') as mo:
   print('##gff-version 3', file=go)

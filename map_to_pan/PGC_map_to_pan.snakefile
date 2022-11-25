@@ -518,7 +518,9 @@ rule match_gff:
     shell:
         """
         grep '>' {input.prot} | tr -d '>' | awk '{{print $1}}' > {output.filter_list}
+        sleep 5
         grep '>' {input.prot} | tr -d '>' | awk '{{print $1}}' | sed 's/novel_sequences_evm.model/novel_sequences_evm.TU/' >> {output.filter_list}
+        sleep 5
         python {params.filter_gff_script} {input.gff} {output.filter_list} {output.gff}
         """
 
