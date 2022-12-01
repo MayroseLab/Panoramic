@@ -835,9 +835,15 @@ rule match_gff:
         logs_dir=LOGS_DIR
     shell:
         """
-        grep '>' {input.prot} | tr -d '>' | awk '{{print $1}}' > {output.filter_list}
-        grep '>' {input.prot} | tr -d '>' | awk '{{print $1}}' | sed 's/novel_sequences_evm.model/novel_sequences_evm.TU/' >> {output.filter_list}
-        python {params.filter_gff_script} {input.gff} {output.filter_list} {output.gff}
+        if [ -s {input.prot} ]
+        then
+            grep '>' {input.prot} | tr -d '>' | awk '{{print $1}}' > {output.filter_list}
+            grep '>' {input.prot} | tr -d '>' | awk '{{print $1}}' | sed 's/novel_sequences_evm.model/novel_sequences_evm.TU/' >> {output.filter_list}
+            python {params.filter_gff_script} {input.gff} {output.filter_list} {output.gff}
+        else
+            touch {output.filter_list}
+            echo '##gff-version 3' > {output.gff}
+       fi
         """
 
 rule rename_pan_genes:
