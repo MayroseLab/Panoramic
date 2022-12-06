@@ -104,6 +104,13 @@ def main():
     parser.add_argument('-o', '--out_gff', help='Output GFF with AEDs', required=True)
     args = parser.parse_args()
 
+    # if input GFF is empty, print empty GFF output and exit
+    if os.path.getsize(args.gff) == 0:
+        print("Input GFF is empty.")
+        with open(args.out_gff, 'w') as fo:
+            print('##gff-version 3', file=fo)
+        sys.exit(0)
+
     # Read weights TSV
     weights_df = pd.read_csv(args.weights, sep='\t', names=['class','source','weight'], index_col='source')
     # Read feature types TSV

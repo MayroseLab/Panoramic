@@ -7,6 +7,13 @@ min_prot = int(sys.argv[3])
 
 # create GFF DB
 gff_db_path = in_gff + '.db'
+try:
+  gff_db = gffutils.create_db(in_gff, dbfn=gff_db_path, force=True, merge_strategy='create_unique')
+except ValueError:
+  # input gff is empty - create empty output gff and exit
+  print('##gff-version 3')
+  sys.exit(0)
+
 gff_db = gffutils.create_db(in_gff, dbfn=gff_db_path, force=True, merge_strategy='create_unique')
 gff_db = gffutils.FeatureDB(gff_db_path)
 
