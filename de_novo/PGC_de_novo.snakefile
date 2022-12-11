@@ -165,7 +165,7 @@ rule prep_annotation_yaml:
     input:
         genome=config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/ragtag.scaffold.fasta",
         ref_genome=config['reference_genome'],
-        ref_gff=config['reference_annotation'],
+        ref_gff=config["out_dir"] + "/all_samples/ref/" + config['reference_name'] + '_longest_trans.gff',
         ref_cds=config['reference_cds'],
         transcripts=config["out_dir"] + "/all_samples/all_transcripts.fasta",
         proteins=config["out_dir"] + "/all_samples/all_proteins.fasta",
