@@ -122,13 +122,36 @@ else:
             """
 
 if config['reference_liftover'] == 1:
+
+    rule create_gff_db:
+        """
+        Create gffutils DB to be
+        used by liftoff
+        """
+        input:
+            config['reference_gff']
+        output:
+            os.path.join(config['out_dir'], os.path.basename(config['reference_gff']) + '.db')
+        params:
+            create_db_script = os.path.join(pipeline_dir, 'create_gff_db.py'),
+            queue=config['queue'],
+            priority=config['priority'],
+            ppn=config['ppn'],
+            logs_dir=LOGS_DIR
+        conda:
+            CONDA_ENV_DIR + '/liftoff.yml'
+        shell:
+            """
+            python {params.create_db_script} {input} {output}
+            """
+
     rule reference_liftover:
         """
         Perform liftover of reference
         genes on input genome
         """
         input:
-            src_gff=config['reference_gff'],
+            src_gff_db=os.path.join(config['out_dir'], os.path.basename(config['reference_gff']) + '.db'),
             src_genome=config['reference_fasta'],
             target_genome=genome_fasta
         output:
@@ -143,7 +166,7 @@ if config['reference_liftover'] == 1:
             CONDA_ENV_DIR + '/liftoff.yml'
         shell:
             """
-            liftoff {input.target_genome} {input.src_genome} -g {input.src_gff} -o {output} -p {params.ppn}
+            liftoff {input.target_genome} {input.src_genome} -db {input.src_gff_db} -o {output} -p {params.ppn}
             """
 else:
     rule skip_liftover:
