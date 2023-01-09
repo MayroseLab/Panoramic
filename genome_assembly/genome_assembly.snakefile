@@ -422,7 +422,7 @@ rule get_data_stats:
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR,
-        ppn=2
+        ppn=4
     shell:
         """
         set +o pipefail;
