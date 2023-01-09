@@ -41,16 +41,24 @@ with open(partitions_list) as f:
 
 # build gff DB
 gff_db_path = in_gff + '.db'
-gff_db = gffutils.create_db(in_gff, dbfn=gff_db_path, force=True, merge_strategy='create_unique')
-gff_db = gffutils.FeatureDB(gff_db_path)
+empty_input = False
+try:
+  gff_db = gffutils.create_db(in_gff, dbfn=gff_db_path, force=True, merge_strategy='create_unique')
+  gff_db = gffutils.FeatureDB(gff_db_path)
+except ValueError:
+  empty_input = True
 
 # create partitions
 gff_basename = os.path.basename(in_gff)
 for chrom in sorted(partitions_dict.keys()):
   for p in partitions_dict[chrom]:
     start, end = p
-    features_in_region = list(gff_db.region((chrom,start,end), completely_within=True))
-    parents_in_region = set([feat['ID'][0] for feat in features_in_region if 'ID' in feat.attributes])
+    if empty_input:
+      features_in_region = []
+      parents_in_region = []
+    else:
+      features_in_region = list(gff_db.region((chrom,start,end), completely_within=True))
+      parents_in_region = set([feat['ID'][0] for feat in features_in_region if 'ID' in feat.attributes])
     # remove features whos parent is not in the list - repeat until no more paretless features are found
     parentless_count = 1
     while parentless_count > 0:
