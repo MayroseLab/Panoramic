@@ -264,21 +264,21 @@ rule copy_reference:
 
 rule index_reference:
     """
-    Index reference genome for BWA
+    Index reference genome for Bowtie2
     """
     input:
         config["out_dir"] + "/all_samples/ref/" + config['reference_name'] + '_genome.fasta'
     output:
-        config["out_dir"] + "/all_samples/ref/" + config['reference_name'] + '_genome.fasta.bwt'
+        config["out_dir"] + "/all_samples/ref/" + config['reference_name'] + '_genome.fasta.4.bt2'
     params:
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR
     conda:
-        CONDA_ENV_DIR + '/bwa.yml'
+        CONDA_ENV_DIR + '/bowtie2.yml'
     shell:
         """
-        bwa index {input}
+        bowtie2-build {input} {input}
         """
 
 rule map_reads_to_ref:
@@ -287,7 +287,7 @@ rule map_reads_to_ref:
     """
     input:
         ref_genome=config["out_dir"] + "/all_samples/ref/" + config['reference_name'] + '_genome.fasta',
-        ref_genome_index=config["out_dir"] + "/all_samples/ref/" + config['reference_name'] + '_genome.fasta.bwt',
+        ref_genome_index=config["out_dir"] + "/all_samples/ref/" + config['reference_name'] + '_genome.fasta.4.bt2',
         r1_paired=config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}_1_clean_paired.fastq.gz",
         r1_unpaired=config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}_1_clean_unpaired.fastq.gz",
         r2_paired=config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}_2_clean_paired.fastq.gz",
@@ -302,12 +302,12 @@ rule map_reads_to_ref:
         logs_dir=LOGS_DIR,
         ppn=config['ppn']
     conda:
-        CONDA_ENV_DIR + '/bwa.yml'
+        CONDA_ENV_DIR + '/bowtie2.yml'
     shell:
         """
-        bwa mem {input.ref_genome} {input.r1_paired} {input.r2_paired} -t {params.ppn} > {output.paired_map}
-        bwa mem {input.ref_genome} {input.r1_unpaired} -t {params.ppn} > {output.r1_unpaired_map}
-        bwa mem {input.ref_genome} {input.r2_unpaired} -t {params.ppn} > {output.r2_unpaired_map}
+        bowtie2 -x {input.ref_genome} -1 {input.r1_paired} -2 {input.r2_paired} -p {params.ppn} > {output.paired_map}
+        bowtie2 -x {input.ref_genome} -U {input.r1_unpaired} -p {params.ppn} > {output.r1_unpaired_map}
+        bowtie2 -x {input.ref_genome} -U {input.r2_unpaired} -p {params.ppn} > {output.r2_unpaired_map}
         """
 
 rule extract_unmapped:
@@ -486,12 +486,13 @@ elif config['assembler'] == 'minia':
         params:
             out_dir=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}",
             ppn=config['ppn'],
+            ppn_minus5=config['ppn']-5,
             queue=config['queue'],
             priority=config['priority'],
             logs_dir=LOGS_DIR
         shell:
             """
-            {input.minia} -1 {input.r1_paired} -2 {input.r2_paired} -s {input.single_reads_list} --nb-cores {params.ppn} --no-scaffolding -o {params.out_dir}/assembly --cleanup
+            {input.minia} -1 {input.r1_paired} -2 {input.r2_paired} -s {input.single_reads_list} --nb-cores {params.ppn_minus5} --no-scaffolding -o {params.out_dir}/assembly --cleanup
             ln {params.out_dir}/assembly_final.contigs.fa {output}
             """
 
@@ -910,21 +911,21 @@ rule create_pan_annotation:
 
 rule index_pan_genome:
     """
-    Index pan genome for BWA runs
+    Index pan genome for Bowtie2 runs
     """
     input:
         config["out_dir"] + "/all_samples/pan_genome/pan_genome.fasta"
     output:
-        config["out_dir"] + "/all_samples/pan_genome/pan_genome.fasta.bwt"
+        config["out_dir"] + "/all_samples/pan_genome/pan_genome.fasta.4.bt2"
     params:
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR,
     conda:
-        CONDA_ENV_DIR + '/bwa.yml'
+        CONDA_ENV_DIR + '/bowtie2.yml'
     shell:
         """
-        bwa index {input}
+        bowtie2-build {input} {input}
         """
 
 rule map_reads_to_pan:
@@ -936,7 +937,7 @@ rule map_reads_to_pan:
         r1_paired=config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}_1_clean_paired.fastq.gz",
         r2_paired=config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}_2_clean_paired.fastq.gz",
         pan_genome=config["out_dir"] + "/all_samples/pan_genome/pan_genome.fasta",
-        pan_genome_index=config["out_dir"] + "/all_samples/pan_genome/pan_genome.fasta.bwt"
+        pan_genome_index=config["out_dir"] + "/all_samples/pan_genome/pan_genome.fasta.4.bt2"
     output:
         config["out_dir"] + "/per_sample/{sample}/map_to_pan_{ena_ref}/{ena_ref}_map_to_pan.sam"
     params:
@@ -945,10 +946,10 @@ rule map_reads_to_pan:
         logs_dir=LOGS_DIR,
         ppn=config['ppn']
     conda:
-        CONDA_ENV_DIR + '/bwa.yml'
+        CONDA_ENV_DIR + '/bowtie2.yml'
     shell:
         """
-        bwa mem -t {params.ppn} {input.pan_genome} {input.r1_paired} {input.r2_paired} > {output}
+        bowtie2 -p {params.ppn} -x {input.pan_genome} -1 {input.r1_paired} -2 {input.r2_paired} > {output}
         """
 
 rule sam_to_sorted_bam:
