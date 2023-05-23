@@ -3,7 +3,7 @@ channels:
   - bioconda
   - conda-forge
 dependencies:
-  - evidencemodeler
+  - evidencemodeler=1.1.1
   - perl-db_file
   - perl-uri=1.76
   - perl-dbi=1.642
