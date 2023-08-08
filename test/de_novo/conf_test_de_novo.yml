@@ -21,6 +21,8 @@ merge_max_mismatch_ratio: 0.2
 assembler: spades
 min_length: 500
 busco_set: saccharomycetes_odb10
+db: "https://genome-idx.s3.amazonaws.com/kraken/k2_standard_16gb_20230605.tar.gz"
+confidence: 0.8
 
 # Annotation
 transcripts: Panoramic/test/data/orf_coding_all_R64-2-1_20150113.fasta   # all transcripts fasta files, separated by commas (including ref)

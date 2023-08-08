@@ -6,9 +6,10 @@ The main steps are:
 2. Preprocess reads (quality trimming
    + PE merging)
 3. Assemble contigs
-4. Reference-guided correction and
+4. filter out contamination
+5. Reference-guided correction and
    scaffolding into pseudomolecules
-5. Assembly quality assessment
+6. Assembly quality assessment
 """
 
 import os
@@ -327,6 +328,62 @@ rule filter_contigs:
         python {params.filter_script} {input} {params.min_length} {output}
         """
 
+rule download_db:
+    output:
+        db = directory(config["out_dir"] + "/all_samples/kraken-db")
+    params:
+       db_location=config["out_dir"] + '/all_samples/kraken-db',
+       db=config['db'],
+       queue=config['queue'],
+       priority=config['priority'],
+       logs_dir=LOGS_DIR
+
+    shell:
+        '''
+        mkdir -p {params.db_location}
+        wget -O db.tar.gz {params.db}
+        tar -xvzf db.tar.gz -C {params.db_location}
+        rm db.tar.gz
+        '''
+
+rule run_kraken:
+    input:
+        db=config["out_dir"] + '/all_samples/kraken-db',
+        assemblies=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contigs_filter.fasta"
+    output:
+        classification=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/classification",
+        report=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/report",
+        summary=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/summary"
+    params:
+        confidence=config['confidence'],
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    conda:
+        CONDA_ENV_DIR + '/kraken2.yml'
+    shell:
+        "kraken2 --use-names --threads 12 --confidence{params.confidence} --db {input.db} --input {input.assemblies} --output {output.classification} --report {output.report} &>{output.summary}"
+
+
+rule filter_contamination:
+    input:
+        classification=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/classification",
+        report=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/report",
+        assemblies=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contigs_filter.fasta"
+    output:
+        filtered_assemblies=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contigs_no_contamination.fasta", 
+        contaminations_precent=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contaminations_precent"
+    params:
+        script=utils_dir + "/filter_contaminations.py",
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    conda:
+        CONDA_ENV_DIR + '/kraken2.yml'
+    shell:
+        "python3 {params.script} {input.report} {input.classification} {input.assemblies} {output.filtered_assemblies} {output.contaminations_precent}"
+
+
 rule ref_guided_assembly:
     """
     Assemble contigs into pseudomolecules
@@ -334,7 +391,7 @@ rule ref_guided_assembly:
     breaking chimeric contigs and then scaffolding
     """
     input:
-        contigs=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contigs_filter.fasta",
+        contigs=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contigs_no_contamination.fasta",
         ref_genome=config['reference_genome'],
     output:
         corrected=config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/ragtag.correct.fasta",
@@ -445,7 +502,8 @@ rule prep_for_collect_stats:
         quast=expand(config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/QUAST/report.tsv", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()]),
         busco=expand(config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/BUSCO/short_summary.BUSCO.txt", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()]),
         ragtag=expand(config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/ragtag.scaffold.fasta", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()]),
-        data_stats=expand(config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}.read_stats.tsv", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()])
+        data_stats=expand(config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}.read_stats.tsv", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()]),
+        contaminations_precent=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contaminations_precent"
     output:
         config["out_dir"] + "/all_samples/stats/assembly_stats_files.tsv"
     params:
@@ -456,7 +514,7 @@ rule prep_for_collect_stats:
         logs_dir=LOGS_DIR
     shell:
         """
-        paste <(echo {params.samples} | tr ' ' "\\n") <(echo {input.quast} | tr ' ' "\\n") <(echo {input.busco} | tr ' ' "\\n") <(echo {input.ragtag} | tr ' ' "\\n") <(echo {input.data_stats} | tr ' ' "\\n") > {output}
+        paste <(echo {params.samples} | tr ' ' "\\n") <(echo {input.quast} | tr ' ' "\\n") <(echo {input.busco} | tr ' ' "\\n") <(echo {input.ragtag} | tr ' ' "\\n") <(echo {input.data_stats} | tr ' ' "\\n") | <(echo {input.contaminations_precent} | tr ' ' "\\n") > {output}
         """
 
 rule collect_assembly_stats:

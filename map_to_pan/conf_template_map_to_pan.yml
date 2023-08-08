@@ -20,6 +20,8 @@ merge_max_mismatch_ratio: 0.2
 assembler: spades
 min_length: 500
 busco_set:
+db: "https://genome-idx.s3.amazonaws.com/kraken/k2_standard_16gb_20230605.tar.gz"
+confidence: 0.8
 
 # Annotation
 annotation_yml_template:
@@ -43,3 +45,4 @@ ppn:
 max_ram:
 max_jobs:
 cluster_wrapper: ""
+

@@ -1,14 +1,14 @@
 name: PGC_map_to_pan
 # input/output
-samples_info_file: Panoramic/test/map_to_pan/LQ_samples_info_map_to_pan.tsv
-hq_genomes_info_file: Panoramic/test/map_to_pan/HQ_samples_info_map_to_pan.tsv
-out_dir: Panoramic/test/map_to_pan/RESULT
+samples_info_file: /groups/itay_mayrose_nosnap/galtol/Panoramic/test/map_to_pan/LQ_samples_info_map_to_pan.tsv
+hq_genomes_info_file: /groups/itay_mayrose_nosnap/galtol/Panoramic/test/map_to_pan/HQ_samples_info_map_to_pan.tsv
+out_dir: /groups/itay_mayrose_nosnap/galtol/Panoramic/test/map_to_pan/RESULT
 
 # Reference genome 
 reference_name: S288C
-reference_genome: Panoramic/test/data/S288C_reference_sequence_R64-2-1_20150113.fsa
-reference_annotation: Panoramic/test/data/saccharomyces_cerevisiae_R64-2-1_20150113.gff
-reference_proteins: Panoramic/test/data/orf_trans_all_R64-2-1_20150113.fasta
+reference_genome: /groups/itay_mayrose_nosnap/galtol/Panoramic/test/data/S288C_reference_sequence_R64-2-1_20150113.fsa
+reference_annotation: /groups/itay_mayrose_nosnap/galtol/Panoramic/test/data/saccharomyces_cerevisiae_R64-2-1_20150113.gff
+reference_proteins: /groups/itay_mayrose_nosnap/galtol/Panoramic/test/data/orf_trans_all_R64-2-1_20150113.fasta
 id_simplify_function: "lambda x: x"
 
 # Reads pre processing (RPP)
@@ -20,11 +20,13 @@ merge_max_mismatch_ratio: 0.2
 assembler: spades
 min_length: 500
 busco_set: saccharomycetes_odb10
+db: "https://genome-idx.s3.amazonaws.com/kraken/k2_standard_16gb_20230605.tar.gz"
+confidence: 0.8
 
 # Annotation
-transcripts: Panoramic/test/data/orf_coding_all_R64-2-1_20150113.fasta   # all transcripts fasta files, separated by commas (including ref)
-proteins: Panoramic/test/data/orf_trans_all_R64-2-1_20150113.fasta      # all proteins fasta files, separated by commas (including ref)
-annotation_yml_template: Panoramic/test/EVM_annotation_template.yml
+transcripts: /groups/itay_mayrose_nosnap/galtol/Panoramic/test/data/orf_coding_all_R64-2-1_20150113.fasta   # all transcripts fasta files, separated by commas (including ref)
+proteins: /groups/itay_mayrose_nosnap/galtol/Panoramic/test/data/orf_trans_all_R64-2-1_20150113.fasta      # all proteins fasta files, separated by commas (including ref)
+annotation_yml_template: /groups/itay_mayrose_nosnap/galtol/Panoramic/test/EVM_annotation_template.yml
 chunk_size: 1000000
 
 # Annotation filtration
@@ -37,9 +39,9 @@ LQ_min_cov: 0.4
 min_read_depth: 5
 
 # Environment
-queue:
-priority:
-ppn:
-max_ram:
-max_jobs:
-cluster_wrapper:
+queue: itaym
+priority: 3
+ppn: 12
+max_ram: 60G
+max_jobs: 100
+cluster_wrapper: /groups/itay_mayrose_nosnap/galtol/Panoramic/util/pbs_qsub_snakemake_wrapper.py"
