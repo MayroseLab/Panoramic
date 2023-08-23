@@ -553,6 +553,62 @@ rule remove_alt_splicing_from_HQ_pan:
         python {params.longest_trans_script} {input.gff} {output.gff}
         python {params.filter_fasta_script} {output.gff} {input.prot} {output.prot} mRNA ID
         """
+rule download_db:
+    output:
+        db = directory(config["out_dir"] + "/all_samples/kraken-db")
+    params:
+       db_location=config["out_dir"] + '/all_samples/kraken-db',
+       db=config['db'],
+       queue=config['queue'],
+       priority=config['priority'],
+       logs_dir=LOGS_DIR
+
+    shell:
+        '''
+        mkdir -p {params.db_location}
+        wget -O db.tar.gz {params.db}
+        tar -xvzf db.tar.gz -C {params.db_location}
+        rm db.tar.gz
+        '''
+
+rule run_kraken:
+    input:
+        db=config["out_dir"] + '/all_samples/kraken-db',
+        assemblies=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contigs.fasta"
+    output:
+        classification=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/classification",
+        report=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/report",
+        summary=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/summary"
+    params:
+        confidence=config['confidence'],
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR,
+        ram=config['max_ram']
+    conda:
+        CONDA_ENV_DIR + '/kraken2.yml'
+    shell:
+        "kraken2 --use-names --threads 12 --confidence {params.confidence} --db {input.db} --input {input.assemblies} --output {output.classification} --report {output.report} &>{output.summary}"
+
+
+rule filter_contamination:
+    input:
+        classification=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/classification",
+        report=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/report",
+        assemblies=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contigs.fasta"
+    output:
+        filtered_assemblies=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contigs_no_contamination.fasta",
+        contaminations_precent=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contaminations_precent"
+    params:
+        script=utils_dir + "/filter_contaminations.py",
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+ conda:
+        CONDA_ENV_DIR + '/kraken2.yml'
+    shell:
+        "python {params.script} {input.report} {input.classification} {input.assemblies} {output.filtered_assemblies} {output.contaminations_precent}"
+
 
 rule prep_tsv_for_LQ_samples:
     """
@@ -561,7 +617,7 @@ rule prep_tsv_for_LQ_samples:
     from assembled LQ samples
     """
     input:
-        expand(config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contigs.fasta", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()])
+        expand(config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contigs_no_contamination.fasta", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()])
     output:
         config["out_dir"] + "/all_samples/pan_genome/samples.tsv"
     params:

@@ -8,7 +8,6 @@ import sys
 import pandas as pd
 from Bio import SeqIO
 
-
 in_tsv = sys.argv[1]
 out_tsv = sys.argv[2]
 
@@ -35,23 +34,24 @@ with open(in_tsv) as f:
     if ragoo_fasta:
       total_len = 0
       chr0_len = 0
-      for rec in SeqIO.parse(ragoo_fasta, 'fasta'):
+      for rec in SeqIO.parse(ragoo_fasta,'fasta'):
         if rec.id == "Chr0_RagTag":
           chr0_len = len(rec.seq)
           total_len += len(rec.seq)
         else:
           total_len += len(rec.seq)
       unmapped_perc = chr0_len/total_len*100
-      s = pd.Series([unmapped_perc], name="% unmapped (Chr0)", index=[sample])
+      s = pd.Series([unmapped_perc], name="% unmapped (Chr0)", index=[sample])    
+      stats_df = stats_df.append(s)
+    with open(contamination) as con_file:
+      value = con_file.readlines()[0].strip()
+      s = pd.Series([value], name="contamination", index=[sample])
       stats_df = stats_df.append(s)
     # QUAST report HTML link
-    html_quast_report = "file://" + quast_report.replace('.tsv', '.html')
+    html_quast_report = "file://" + quast_report.replace('.tsv','.html')  
     s = pd.Series([html_quast_report], name="QUAST report", index=[sample])
     stats_df = stats_df.append(s)
     columns.append(stats_df)
-    with open(contamination) as con_file:
-      columns.append(con_file.readlines()[0])
-
 
 if not columns:
   headers = ["Assembly","# contigs (>= 0 bp)","# contigs (>= 1000 bp)","# contigs (>= 5000 bp)",
@@ -61,10 +61,9 @@ if not columns:
            "# contigs","Largest contig","Total length","GC (%%)","N50","N75","L50","L75",
            "# total reads","# left","# right Mapped (%%)","Properly paired (%%)","Avg. coverage depth",
            "Coverage >= 1x (%%)","# N's per 100 kbp","%% Complete BUSCOs","%% unmapped (Chr0)",
-           "QUAST report","Read length (bp)", "% Removed contamination"]
+           "% Removed contamination", "QUAST report","Read length (bp)"]
   print('\t'.join(headers), file=out_tsv)
 else:
   stats_df = pd.concat(columns, axis=1)
   stats_df = stats_df.transpose()
   stats_df.to_csv(out_tsv, sep='\t')
-
