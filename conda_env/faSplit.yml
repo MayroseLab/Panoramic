@@ -1,5 +1,6 @@
 name: faSplit
 channels:
+  - conda-forge
   - bioconda
 dependencies:
   - ucsc-fasplit=377

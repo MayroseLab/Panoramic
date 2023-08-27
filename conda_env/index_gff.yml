@@ -1,5 +1,6 @@
 name: index_gff
 channels:
+  - conda-forge
   - bioconda
 dependencies:
   - bedtools=2.29.2
