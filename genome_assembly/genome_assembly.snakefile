@@ -331,6 +331,9 @@ rule filter_contigs:
         """
 
 rule download_db:
+    """
+    Download the kraken2 database for contamination identification
+    """
     output:
         db = directory(config["out_dir"] + "/all_samples/kraken-db")
     params:
@@ -349,6 +352,9 @@ rule download_db:
         '''
 
 rule run_kraken:
+    """
+    Classify organisms using Kraken2
+    """
     input:
         db=config["out_dir"] + '/all_samples/kraken-db',
         assemblies=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contigs_filter.fasta"
@@ -369,6 +375,9 @@ rule run_kraken:
 
 
 rule filter_contamination:
+    """
+    Based on the organism classifications, filter out contaminants
+    """
     input:
         classification=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/classification",
         report=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/report",
