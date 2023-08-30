@@ -2,7 +2,7 @@ name: PGC_map_to_pan
 # input/output
 samples_info_file: /groups/itay_mayrose_nosnap/galtol/orig/Panoramic/test/map_to_pan/LQ_samples_info_map_to_pan.tsv
 hq_genomes_info_file: /groups/itay_mayrose_nosnap/galtol/orig/Panoramic/test/map_to_pan/HQ_samples_info_map_to_pan.tsv
-out_dir: /groups/itay_mayrose_nosnap/galtol/orig/Panoramic/test/map_to_pan/RESULT
+out_dir: /groups/itay_mayrose_nosnap/galtol/orig/Panoramic/test/map_to_pan/RESULT2
 
 # Reference genome 
 reference_name: S288C
