@@ -1,6 +1,7 @@
 name: PASA
 channels:
   - bioconda
+  - conda-forge
 dependencies:
   - pasa=2.4.1
   - blat=36
