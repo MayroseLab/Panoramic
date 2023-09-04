@@ -2,5 +2,6 @@ name: liftoff
 channels:
   - conda-forge
   - bioconda
-dependencies:
+#  - conda-forge
+dependencies: 
   - liftoff=1.6.1
