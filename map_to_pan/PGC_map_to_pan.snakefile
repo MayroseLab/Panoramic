@@ -130,6 +130,25 @@ a dedicated pipeline.
 """
 include: "../genome_assembly/genome_assembly.snakefile"
 
+rule separate_HQ:
+    input:
+        config['hq_genomes_info_file']
+    output:
+        anotated = config["out_dir"] + "/HQ_samples/HQ_pan/" + "HQ_info.tsv",
+        assemblied = config["out_dir"] + "/HQ_samples/HQ_pan/" + "HQ_assemblied.tsv"
+    params:
+        script = utils_dir + "/hq_seprate.py",
+        queue = config['queue'],
+        priority = config['priority'],
+        logs_dir = LOGS_DIR
+    conda:
+        CONDA_ENV_DIR + '/pandas.yml'
+    shell:
+        """
+        python {params.script} {input} {output.assemblied} {output.anotated}
+        """
+
+
 rule simplify_ref_gff_ID:
     """
     Edit ID (and Parent) attributes of ref gff
@@ -183,7 +202,7 @@ rule iterative_map_to_pan_HQ:
     adding novel sequences and genes.
     """
     input:
-       samples=config['hq_genomes_info_file'],
+       samples=config["out_dir"] + "/HQ_samples/HQ_pan/" + "HQ_info.tsv",
        ref_genome=config['reference_genome'],
        ref_gff=config["out_dir"] + "/all_samples/ref/" + config['reference_name'] + '_longest_trans_simp.gff',
        ref_proteins=config['reference_proteins']
@@ -241,7 +260,8 @@ rule prep_tsv_for_LQ_samples:
     from assembled LQ samples
     """
     input:
-        expand(config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/ragtag.scaffold.fasta", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()])
+        hq_samples=config["out_dir"] + "/HQ_samples/HQ_pan/" + "HQ_assemblied.tsv",
+        lq_samples=expand(config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/ragtag.scaffold.fasta", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()])
     output:
         config["out_dir"] + "/all_samples/pan_genome/samples.tsv"
     params:
@@ -251,7 +271,8 @@ rule prep_tsv_for_LQ_samples:
     shell:
         """
         echo "sample\tgenome_fasta" > {output}
-        echo "{input}" | tr ' ' '\n' | awk '{{split($0,a,"/"); print a[length(a)-3]"\t"$0}}' >> {output}
+        tail -n +2 {input.hq_samples} >> {output}
+        echo "{input.lq_samples}" | tr ' ' '\n' | awk '{{split($0,a,"/"); print a[length(a)-3]"\t"$0}}' >> {output}
         """
 
 rule iterative_map_to_pan_LQ:
@@ -973,3 +994,4 @@ rule create_report_html:
         """
         jupyter nbconvert {input} --output {output} --to html --no-prompt --no-input --execute --NotebookClient.timeout=-1 --ExecutePreprocessor.timeout=-1
         """
+
