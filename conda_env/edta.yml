@@ -1,6 +1,5 @@
 name: EDTA
 channels:
-#  - bioconda
   - conda-forge
   - bioconda
 dependencies:
