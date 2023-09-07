@@ -1,6 +1,0 @@
-name: TransDecoder
-channels:
-  - bioconda
-dependencies:
-  - transdecoder=5.5.0
-  - blast=2.2.31
