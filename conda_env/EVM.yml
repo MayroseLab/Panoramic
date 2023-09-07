@@ -4,6 +4,6 @@ channels:
   - conda-forge
 dependencies:
   - evidencemodeler=1.1.1
-  - perl-db_file
+  - perl-db-file=1.835
   - perl-uri=1.76
   - perl-dbi=1.642

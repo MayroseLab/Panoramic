@@ -1,5 +1,0 @@
-name: faSplit
-channels:
-  - bioconda
-dependencies:
-  - ucsc-fasplit=377
