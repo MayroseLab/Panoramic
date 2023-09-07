@@ -110,6 +110,11 @@ def get_hq_sample_genome(wildcards):
 def get_hq_sample_proteins(wildcards):
     return config['hq_info'][wildcards.sample]['proteins_fasta']
 
+def get_hq_assemblies_names(hq_file):
+    with open(hq_file, "r") as f:
+        lines = f.readlines()
+    return [line.strip().split("\t")[0] for line in lines[1:]]
+
 wildcard_constraints:
     sample="[^_]+"
 
@@ -137,6 +142,26 @@ else:
             echo -e "Assembly\t# contigs (>= 0 bp)\t# contigs (>= 1000 bp)\t# contigs (>= 5000 bp)\t# contigs (>= 10000 bp) # contigs (>= 25000 bp)\t# contigs (>= 50000 bp)\tTotal length (>= 0 bp)\tTotal length (>= 1000 bp)\tTotal length (>= 5000 bp)\tTotal length (>= 10000 bp)\tTotal length (>= 25000 bp)\tTotal length (>= 50000 bp)\t# contigs\tLargest contig\tTotal length\tGC (%%)\tN50\tN75\tL50\tL75\t# total reads\t# left\t# right Mapped (%%)\tProperly paired (%%)\tAvg. coverage depth\tCoverage >= 1x (%%)\t# N's per 100 kbp\t%% Complete BUSCOs\t%% unmapped (Chr0)\tQUAST report\tRead length (bp)" > {output}
             """
 pipeline_dir = os.path.dirname(os.path.realpath(workflow.snakefile))
+
+rule separate_HQ:
+    input:
+        config['hq_genomes_info_file']
+    output:
+        anotated = config["out_dir"] + "/HQ_samples/HQ_pan/" + "HQ_info.tsv",
+        assemblied = config["out_dir"] + "/HQ_samples/HQ_pan/" + "HQ_assemblied.tsv"
+    params:
+        script = utils_dir + "/hq_separate.py",
+        queue = config['queue'],
+        priority = config['priority'],
+        logs_dir = LOGS_DIR
+    conda:
+        CONDA_ENV_DIR + '/pandas'
+    shell:
+        """
+        python {params.script} {input} {output.assemblied} {output.anotated}
+        """
+
+
 rule aggregate_annotation_evidence:
     """
     Collect all transcript and protein sequences
@@ -156,7 +181,45 @@ rule aggregate_annotation_evidence:
         cat {params.trans_files} > {output.trans}
         cat {params.prot_files} > {output.prot}
         """
-    
+
+
+rule prep_annotation_yaml_HQ:
+    """
+    Prepare yml config for annotation
+    pipeline of each sample
+    """
+    input:
+        genome=config["out_dir"] + "/HQ_samples/HQ_pan/" + "HQ_assemblied.tsv",
+        ref_genome=config['reference_genome'],
+        ref_gff=config["out_dir"] + "/all_samples/ref/" + config['reference_name'] + '_longest_trans.gff',
+        ref_cds=config['reference_cds'],
+        transcripts=config["out_dir"] + "/all_samples/all_transcripts.fasta",
+        proteins=config["out_dir"] + "/all_samples/all_proteins.fasta",
+        yml_template=config['annotation_yml_template']
+    output:
+        config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/annotation.yml"
+    params:
+        annotation_dir=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/",
+        queue=config['queue'],
+        priority=config['priority'],
+        ppn_=config['ppn'],
+        max_ram_=config['max_ram'],
+        max_jobs_=config['max_jobs']/len(config['samples_info']),
+        logs_dir=LOGS_DIR
+    shell:
+        """
+        genome_path=$(awk -v sample="{sample}" '$1 == sample {print $2}' {input.genome})
+        if [ -s {input.transcripts} ]
+        then trans={input.transcripts}
+        else trans=''
+        fi
+        if [ -s {input.proteins} ]
+        then prot={input.proteins}
+        else prot=''
+        fi
+        sed -e 's@<INPUT_GENOME>@$genome_path@' -e 's@<SAMPLE_NAME>@{wildcards.sample}@' -e 's@<OUT_DIR>@{params.annotation_dir}@' -e 's@<REFERENCE_CDS>@{input.ref_cds}@' -e 's@<REFERENCE_LIFTOVER>@1@' -e 's@<REFERENCE_GFF>@{input.ref_gff}@' -e 's@<REFERENCE_FASTA>@{input.ref_genome}@' -e "s@<TRANSCRIPTS_FASTA>@$trans@" -e "s@<PROTEINS_FASTA>@$prot@" -e 's@<QUEUE>@{params.queue}@' -e 's@<PRIORITY>@{params.priority}@' -e 's@<PPN>@{params.ppn_}@' -e 's@<MAX_RAM>@{params.max_ram_}@' -e 's@<MAX_JOBS>@{params.max_jobs_}@' {input.yml_template} > {output}
+        """
+
 rule prep_annotation_yaml:
     """
     Prepare yml config for annotation
@@ -462,6 +525,7 @@ rule get_ref_transcripts:
         python {params.filter_fasta_script} {input.gff} {input.fasta} {output} mRNA ID
         """
 
+
 rule orthofinder:
     """
     Run OrthoFinder2 on all proteins
@@ -470,6 +534,7 @@ rule orthofinder:
     """
     input:
         expand(config["out_dir"] + "/all_samples/orthofinder/{sample}_{ena_ref}_LQ.fasta", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()]),
+        expand(config["out_dir"] + "/all_samples/orthofinder/{sample}_{ena_ref}_LQ.fasta", zip, sample=get_hq_assemblies_names(config["out_dir"] + "/HQ_samples/HQ_pan/" + "HQ_assemblied.tsv"),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()]),
         config["out_dir"] + "/all_samples/orthofinder/" + config['reference_name'] + '_REF.fasta',
         expand(config["out_dir"] + "/all_samples/orthofinder/{sample}_HQ.fasta", sample=config['hq_info'].keys())
     output:
@@ -714,3 +779,4 @@ rule create_report_html:
         """
         jupyter nbconvert {input} --output {output} --to html --no-prompt --no-input --execute --NotebookClient.timeout=-1 --ExecutePreprocessor.timeout=-1
         """
+
