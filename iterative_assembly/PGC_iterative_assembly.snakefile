@@ -553,34 +553,41 @@ rule remove_alt_splicing_from_HQ_pan:
         python {params.longest_trans_script} {input.gff} {output.gff}
         python {params.filter_fasta_script} {output.gff} {input.prot} {output.prot} mRNA ID
         """
+
 rule download_db:
+    """
+    Download the kraken2 database for contamination identification
+    """
     output:
-        db = directory(config["out_dir"] + "/all_samples/kraken-db")
+        db_location = directory(config["out_dir"] + "/all_samples/kraken-db")
     params:
-       db_location=config["out_dir"] + '/all_samples/kraken-db',
-       db=config['db'],
+       db_link=config['contamination_db'],
        queue=config['queue'],
        priority=config['priority'],
        logs_dir=LOGS_DIR
 
     shell:
         '''
-        mkdir -p {params.db_location}
-        wget -O db.tar.gz {params.db}
-        tar -xvzf db.tar.gz -C {params.db_location}
+        mkdir -p {output.db_location}
+        wget -O db.tar.gz {params.db_link}
+        tar -xvzf db.tar.gz -C {output.db_location}
         rm db.tar.gz
         '''
 
 rule run_kraken:
+    """
+    Classify organisms using Kraken2
+    """
     input:
         db=config["out_dir"] + '/all_samples/kraken-db',
-        assemblies=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contigs.fasta"
+        assemblies=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contigs_filter.fasta"
     output:
-        classification=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/classification",
-        report=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/report",
-        summary=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/summary"
+        classification=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contamination_classification",
+        report=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contamination_report",
+        summary=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contamination_summary"
     params:
-        confidence=config['confidence'],
+        confidence=config['contamination_confidence'],
+        ppn=config['ppn'],
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR,
@@ -588,26 +595,29 @@ rule run_kraken:
     conda:
         CONDA_ENV_DIR + '/kraken2.yml'
     shell:
-        "kraken2 --use-names --threads 12 --confidence {params.confidence} --db {input.db} --input {input.assemblies} --output {output.classification} --report {output.report} &>{output.summary}"
+        "kraken2 --use-names --threads {params.ppn} --confidence {params.confidence} --db {input.db} --input {input.assemblies} --output {output.classification} --report {output.report} &>{output.summary}"
 
 
 rule filter_contamination:
+    """
+    Based on the organism classifications, filter out contaminants
+    """
     input:
-        classification=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/classification",
-        report=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/report",
-        assemblies=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contigs.fasta"
+        classification=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contamination_classification",
+        report=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contamination_report",
+        assemblies=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contigs_filter.fasta"
     output:
         filtered_assemblies=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contigs_no_contamination.fasta",
-        contaminations_precent=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contaminations_precent"
+        contaminations_percent=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contaminations_percent"
     params:
         script=utils_dir + "/filter_contaminations.py",
         queue=config['queue'],
-        priority=config['priority'],
+	priority=config['priority'],
         logs_dir=LOGS_DIR
- conda:
+    conda:
         CONDA_ENV_DIR + '/kraken2.yml'
     shell:
-        "python {params.script} {input.report} {input.classification} {input.assemblies} {output.filtered_assemblies} {output.contaminations_precent}"
+        "python {params.script} {input.report} {input.classification} {input.assemblies} {output.filtered_assemblies} {output.contaminations_percent}"
 
 
 rule prep_tsv_for_LQ_samples:
