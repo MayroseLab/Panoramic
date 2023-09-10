@@ -1,6 +1,8 @@
 """
-This script takes the Kraken input and generates filtered sequence data to be contamination free while calculating contamination percentages.
+This script processes Kraken input data to generate filtered sequence data, removing contamination, and calculates contamination percentages.
+Run the script with the following command:
 python filter_contamination.py <report_file> <classification_file> <contigs_file> <output_fasta_file> <results_file>
+Parameters:
 <report_file>: A tab-separated report file containing sequence classification information.
 <classification_file>: A tab-separated classification file containing sequence classification details.
 <contigs_file>: A FASTA file containing sequence data.
