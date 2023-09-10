@@ -170,6 +170,8 @@ rule download_fastq:
         CONDA_ENV_DIR + '/kingfisher.yml'
     shell:
         """
+        sleep_time=$((RANDOM % 60 + 10))
+        sleep $sleep_time
         cd {params.sample_out_dir}
         {input.exe} get -m ena-ascp -r {params.ena_ref}
         """
