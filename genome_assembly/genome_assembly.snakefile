@@ -335,19 +335,18 @@ rule download_db:
     Download the kraken2 database for contamination identification
     """
     output:
-        db = directory(config["out_dir"] + "/all_samples/kraken-db")
+        db_location = directory(config["out_dir"] + "/all_samples/kraken-db")
     params:
-       db_location=config["out_dir"] + '/all_samples/kraken-db',
-       db=config['db'],
+       db_link=config['contamination_db'],
        queue=config['queue'],
        priority=config['priority'],
        logs_dir=LOGS_DIR
 
     shell:
         '''
-        mkdir -p {params.db_location}
-        wget -O db.tar.gz {params.db}
-        tar -xvzf db.tar.gz -C {params.db_location}
+        mkdir -p {output.db_location}
+        wget -O db.tar.gz {params.db_link}
+        tar -xvzf db.tar.gz -C {output.db_location}
         rm db.tar.gz
         '''
 
@@ -359,11 +358,12 @@ rule run_kraken:
         db=config["out_dir"] + '/all_samples/kraken-db',
         assemblies=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contigs_filter.fasta"
     output:
-        classification=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/classification",
-        report=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/report",
-        summary=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/summary"
+        classification=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contamination_classification",
+        report=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contamination_report",
+        summary=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contamination_summary"
     params:
-        confidence=config['confidence'],
+        confidence=config['contamination_confidence'],
+        ppn=config['ppn'],
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR,
@@ -371,7 +371,7 @@ rule run_kraken:
     conda:
         CONDA_ENV_DIR + '/kraken2.yml'
     shell:
-        "kraken2 --use-names --threads 12 --confidence {params.confidence} --db {input.db} --input {input.assemblies} --output {output.classification} --report {output.report} &>{output.summary}"
+        "kraken2 --use-names --threads {params.ppn} --confidence {params.confidence} --db {input.db} --input {input.assemblies} --output {output.classification} --report {output.report} &>{output.summary}"
 
 
 rule filter_contamination:
@@ -379,12 +379,12 @@ rule filter_contamination:
     Based on the organism classifications, filter out contaminants
     """
     input:
-        classification=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/classification",
-        report=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/report",
+        classification=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contamination_classification",
+        report=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contamination_report",
         assemblies=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contigs_filter.fasta"
     output:
         filtered_assemblies=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contigs_no_contamination.fasta",
-        contaminations_precent=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contaminations_precent"
+        contaminations_percent=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contaminations_percent"
     params:
         script=utils_dir + "/filter_contaminations.py",
         queue=config['queue'],
@@ -393,7 +393,7 @@ rule filter_contamination:
     conda:
         CONDA_ENV_DIR + '/kraken2.yml'
     shell:
-        "python {params.script} {input.report} {input.classification} {input.assemblies} {output.filtered_assemblies} {output.contaminations_precent}"
+        "python {params.script} {input.report} {input.classification} {input.assemblies} {output.filtered_assemblies} {output.contaminations_percent}"
 
 
 rule ref_guided_assembly:
@@ -403,7 +403,6 @@ rule ref_guided_assembly:
     breaking chimeric contigs and then scaffolding
     """
     input:
-#        contigs=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contigs_no_contamination.fasta",
         contigs=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contigs_filter.fasta",
         ref_genome=config['reference_genome']
     output:
@@ -516,7 +515,7 @@ rule prep_for_collect_stats:
         busco=expand(config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/BUSCO/short_summary.BUSCO.txt", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()]),
         ragtag=expand(config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/ragtag.scaffold.fasta", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()]),
         data_stats=expand(config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}.read_stats.tsv", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()]),
-        contaminations_precent=expand(config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contaminations_precent", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()])
+        contaminations_percent=expand(config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contaminations_percent", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()])
     output:
         config["out_dir"] + "/all_samples/stats/assembly_stats_files.tsv"
     params:
@@ -527,7 +526,7 @@ rule prep_for_collect_stats:
         logs_dir=LOGS_DIR
     shell:
         """
-        paste <(echo {params.samples} | tr ' ' "\\n") <(echo {input.quast} | tr ' ' "\\n") <(echo {input.busco} | tr ' ' "\\n") <(echo {input.ragtag} | tr ' ' "\\n") <(echo {input.data_stats} | tr ' ' "\\n") <(echo {input.contaminations_precent} | tr ' ' "\\n") > {output}
+        paste <(echo {params.samples} | tr ' ' "\\n") <(echo {input.quast} | tr ' ' "\\n") <(echo {input.busco} | tr ' ' "\\n") <(echo {input.ragtag} | tr ' ' "\\n") <(echo {input.data_stats} | tr ' ' "\\n") <(echo {input.contaminations_percent} | tr ' ' "\\n") > {output}
         """
 
 rule collect_assembly_stats:

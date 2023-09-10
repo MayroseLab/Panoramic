@@ -1,3 +1,13 @@
+"""
+This script takes the Kraken input and generates filtered sequence data to be contamination free while calculating contamination percentages.
+python filter_contamination.py <report_file> <classification_file> <contigs_file> <output_fasta_file> <results_file>
+<report_file>: A tab-separated report file containing sequence classification information.
+<classification_file>: A tab-separated classification file containing sequence classification details.
+<contigs_file>: A FASTA file containing sequence data.
+<output_fasta_file>: The name of the output FASTA file where filtered sequences will be saved.
+<results_file>: The name of the results file where contamination percentage will be appended.
+"""
+
 import sys
 import pandas as pd
 from Bio import SeqIO
