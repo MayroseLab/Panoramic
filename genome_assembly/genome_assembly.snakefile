@@ -6,9 +6,10 @@ The main steps are:
 2. Preprocess reads (quality trimming
    + PE merging)
 3. Assemble contigs
-4. Reference-guided correction and
+4. filter out contamination
+5. Reference-guided correction and
    scaffolding into pseudomolecules
-5. Assembly quality assessment
+6. Assembly quality assessment
 """
 
 import os
@@ -111,6 +112,8 @@ rule download_fastq:
         CONDA_ENV_DIR + '/kingfisher.yml'
     shell:
         """
+        sleep_time=$((RANDOM % 60 + 10))
+        sleep $sleep_time
         cd {params.sample_out_dir}
         {input.exe} get -m ena-ascp -r {params.ena_ref}
         """
@@ -327,6 +330,72 @@ rule filter_contigs:
         python {params.filter_script} {input} {params.min_length} {output}
         """
 
+rule download_db:
+    """
+    Download the kraken2 database for contamination identification
+    """
+    output:
+        db_location = directory(config["out_dir"] + "/all_samples/kraken-db")
+    params:
+       db_link=config['contamination_db'],
+       queue=config['queue'],
+       priority=config['priority'],
+       logs_dir=LOGS_DIR
+
+    shell:
+        '''
+        mkdir -p {output.db_location}
+        wget -O db.tar.gz {params.db_link}
+        tar -xvzf db.tar.gz -C {output.db_location}
+        rm db.tar.gz
+        '''
+
+rule run_kraken:
+    """
+    Classify organisms using Kraken2
+    """
+    input:
+        db=config["out_dir"] + '/all_samples/kraken-db',
+        assemblies=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contigs_filter.fasta"
+    output:
+        classification=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contamination_classification",
+        report=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contamination_report",
+        summary=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contamination_summary"
+    params:
+        confidence=config['contamination_confidence'],
+        ppn=config['ppn'],
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR,
+        ram=config['max_ram']
+    conda:
+        CONDA_ENV_DIR + '/kraken2.yml'
+    shell:
+        "kraken2 --use-names --threads {params.ppn} --confidence {params.confidence} --db {input.db} --input {input.assemblies} --output {output.classification} --report {output.report} &>{output.summary}"
+
+
+rule filter_contamination:
+    """
+    Based on the organism classifications, filter out contaminants
+    """
+    input:
+        classification=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contamination_classification",
+        report=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contamination_report",
+        assemblies=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contigs_filter.fasta"
+    output:
+        filtered_assemblies=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contigs_no_contamination.fasta",
+        contaminations_percent=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contaminations_percent"
+    params:
+        script=utils_dir + "/filter_contaminations.py",
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    conda:
+        CONDA_ENV_DIR + '/kraken2.yml'
+    shell:
+        "python {params.script} {input.report} {input.classification} {input.assemblies} {output.filtered_assemblies} {output.contaminations_percent}"
+
+
 rule ref_guided_assembly:
     """
     Assemble contigs into pseudomolecules
@@ -335,7 +404,7 @@ rule ref_guided_assembly:
     """
     input:
         contigs=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contigs_filter.fasta",
-        ref_genome=config['reference_genome'],
+        ref_genome=config['reference_genome']
     output:
         corrected=config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/ragtag.correct.fasta",
         pm=config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/ragtag.scaffold.fasta",
@@ -385,7 +454,7 @@ rule assembly_quast:
     Run QUAST on filtered assembly to get assembly stats and QA
     """
     input:
-        contigs=config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/ragtag.correct.fasta",
+        contigs=config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/ragtag.correct.fasta"
     output:
         config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/QUAST/report.html",
         config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/QUAST/report.tsv"
@@ -445,7 +514,8 @@ rule prep_for_collect_stats:
         quast=expand(config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/QUAST/report.tsv", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()]),
         busco=expand(config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/BUSCO/short_summary.BUSCO.txt", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()]),
         ragtag=expand(config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/ragtag.scaffold.fasta", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()]),
-        data_stats=expand(config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}.read_stats.tsv", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()])
+        data_stats=expand(config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}.read_stats.tsv", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()]),
+        contaminations_percent=expand(config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contaminations_percent", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()])
     output:
         config["out_dir"] + "/all_samples/stats/assembly_stats_files.tsv"
     params:
@@ -456,7 +526,7 @@ rule prep_for_collect_stats:
         logs_dir=LOGS_DIR
     shell:
         """
-        paste <(echo {params.samples} | tr ' ' "\\n") <(echo {input.quast} | tr ' ' "\\n") <(echo {input.busco} | tr ' ' "\\n") <(echo {input.ragtag} | tr ' ' "\\n") <(echo {input.data_stats} | tr ' ' "\\n") > {output}
+        paste <(echo {params.samples} | tr ' ' "\\n") <(echo {input.quast} | tr ' ' "\\n") <(echo {input.busco} | tr ' ' "\\n") <(echo {input.ragtag} | tr ' ' "\\n") <(echo {input.data_stats} | tr ' ' "\\n") <(echo {input.contaminations_percent} | tr ' ' "\\n") > {output}
         """
 
 rule collect_assembly_stats:

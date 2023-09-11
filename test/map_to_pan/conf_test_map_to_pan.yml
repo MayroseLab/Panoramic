@@ -21,6 +21,10 @@ assembler: spades
 min_length: 500
 busco_set: saccharomycetes_odb10
 
+# contamination filtration
+contamination_db: "https://genome-idx.s3.amazonaws.com/kraken/k2_standard_16gb_20230605.tar.gz"
+contamination_confidence: 0.8
+
 # Annotation
 transcripts: Panoramic/test/data/orf_coding_all_R64-2-1_20150113.fasta   # all transcripts fasta files, separated by commas (including ref)
 proteins: Panoramic/test/data/orf_trans_all_R64-2-1_20150113.fasta      # all proteins fasta files, separated by commas (including ref)
