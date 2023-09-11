@@ -4,4 +4,4 @@ channels:
   - bioconda
 dependencies:
   - snakemake=7.16.0
-  - gitpython
+  - gitpython=3.1.32

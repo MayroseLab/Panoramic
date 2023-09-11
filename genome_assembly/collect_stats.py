@@ -17,7 +17,7 @@ with open(in_tsv) as f:
     if line == '' or line == '\n' or line.startswith('#'):
       continue
     fields = line.strip().split('\t')
-    sample, quast_report, busco_sum, ragoo_fasta, data_stats_file = fields
+    sample, quast_report, busco_sum, ragoo_fasta, data_stats_file, contamination = fields
     # get data stats
     stats_df = pd.read_csv(data_stats_file, sep='\t', index_col = 0, names=[sample])
     # get quast stats
@@ -43,6 +43,10 @@ with open(in_tsv) as f:
       unmapped_perc = chr0_len/total_len*100
       s = pd.Series([unmapped_perc], name="% unmapped (Chr0)", index=[sample])    
       stats_df = stats_df.append(s)
+    with open(contamination) as con_file:
+      value = con_file.readlines()[0].strip()
+      s = pd.Series([value], name="contamination", index=[sample])
+      stats_df = stats_df.append(s)
     # QUAST report HTML link
     html_quast_report = "file://" + quast_report.replace('.tsv','.html')  
     s = pd.Series([html_quast_report], name="QUAST report", index=[sample])
@@ -57,7 +61,7 @@ if not columns:
            "# contigs","Largest contig","Total length","GC (%%)","N50","N75","L50","L75",
            "# total reads","# left","# right Mapped (%%)","Properly paired (%%)","Avg. coverage depth",
            "Coverage >= 1x (%%)","# N's per 100 kbp","%% Complete BUSCOs","%% unmapped (Chr0)",
-           "QUAST report","Read length (bp)"]
+           "% Removed contamination", "QUAST report","Read length (bp)"]
   print('\t'.join(headers), file=out_tsv)
 else:
   stats_df = pd.concat(columns, axis=1)
