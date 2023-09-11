@@ -21,6 +21,10 @@ assembler: spades
 min_length: 500
 busco_set:
 
+# contamination filtration
+contamination_db: "https://genome-idx.s3.amazonaws.com/kraken/k2_standard_16gb_20230605.tar.gz"
+contamination_confidence: 0.8
+
 # Annotation
 annotation_yml_template:
 transcripts:

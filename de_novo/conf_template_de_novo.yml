@@ -1,30 +1,34 @@
 name: PGC_de_novo
 # input/output
-samples_info_file:
-hq_genomes_info_file:
+samples_info_file: 
+hq_genomes_info_file: 
 out_dir:
 
 # Reference
-reference_name:
-reference_genome:
-reference_proteins:
-reference_annotation:
-reference_cds:
+reference_name: 
+reference_genome: 
+reference_proteins: 
+reference_annotation: 
+reference_cds: 
 reference_transcripts:
 
 # Reads pre processing (RPP)
 trimming_modules: "SLIDINGWINDOW:5:15 MINLEN:40"
-merge_min_overlap: 10
-merge_max_mismatch_ratio: 0.2
+ merge_min_overlap: 10
+ merge_max_mismatch_ratio: 0.2
 
 # Assembly
 assembler: spades
 min_length: 500
 busco_set:
 
+# contamination filtration
+contamination_db: "https://genome-idx.s3.amazonaws.com/kraken/k2_standard_16gb_20230605.tar.gz"
+contamination_confidence: 0.8
+
 # annotation
-transcripts:    # all transcripts fasta files, separated by commas (including ref)
-proteins:       # all proteins fasta files, separated by commas (including ref)
+transcripts: # all transcripts fasta files, separated by commas (including ref)
+proteins: # all proteins fasta files, separated by commas (including ref)
 annotation_yml_template:
 
 # Annotation filtration

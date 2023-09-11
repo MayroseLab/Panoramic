@@ -1,16 +1,16 @@
 name: PGC_de_novo
 # input/output
-samples_info_file: Panoramic/test/de_novo/LQ_samples_info_de_novo.tsv
-hq_genomes_info_file: Panoramic/test/de_novo/HQ_samples_info_de_novo.tsv
-out_dir: Panoramic/test/de_novo/RESULT
+samples_info_file: /groups/itay_mayrose_nosnap/galtol/orig/Panoramic/test/de_novo/LQ_samples_info_de_novo.tsv
+hq_genomes_info_file: /groups/itay_mayrose_nosnap/galtol/orig/Panoramic/test/de_novo/HQ_samples_info_de_novo.tsv
+out_dir: /groups/itay_mayrose_nosnap/galtol/orig/Panoramic/test/de_novo/RESULT
 
 # Reference genome
 reference_name: S288C
-reference_genome: Panoramic/test/data/S288C_reference_sequence_R64-2-1_20150113.fsa
-reference_annotation: Panoramic/test/data/saccharomyces_cerevisiae_R64-2-1_20150113.gff
-reference_proteins: Panoramic/test/data/orf_trans_all_R64-2-1_20150113.fasta
-reference_cds: Panoramic/test/data/orf_coding_all_R64-2-1_20150113.fasta
-reference_transcripts: Panoramic/test/data/orf_coding_all_R64-2-1_20150113.fasta
+reference_genome: /groups/itay_mayrose_nosnap/galtol/orig/Panoramic/test/data/S288C_reference_sequence_R64-2-1_20150113.fsa
+reference_annotation: /groups/itay_mayrose_nosnap/galtol/orig/Panoramic/test/data/saccharomyces_cerevisiae_R64-2-1_20150113.gff
+reference_proteins: /groups/itay_mayrose_nosnap/galtol/orig/Panoramic/test/data/orf_trans_all_R64-2-1_20150113.fasta
+reference_cds: /groups/itay_mayrose_nosnap/galtol/orig/Panoramic/test/data/orf_coding_all_R64-2-1_20150113.fasta
+reference_transcripts: /groups/itay_mayrose_nosnap/galtol/orig/Panoramic/test/data/orf_coding_all_R64-2-1_20150113.fasta
 
 # Reads pre processing (RPP)
 trimming_modules: "SLIDINGWINDOW:5:15 MINLEN:40"
@@ -22,18 +22,22 @@ assembler: spades
 min_length: 500
 busco_set: saccharomycetes_odb10
 
+# contamination filtration
+contamination_db: "https://genome-idx.s3.amazonaws.com/kraken/k2_standard_16gb_20230605.tar.gz"
+contamination_confidence: 0.8
+
 # Annotation
-transcripts: Panoramic/test/data/orf_coding_all_R64-2-1_20150113.fasta   # all transcripts fasta files, separated by commas (including ref)
-proteins: Panoramic/test/data/orf_trans_all_R64-2-1_20150113.fasta      # all proteins fasta files, separated by commas (including ref)
-annotation_yml_template: Panoramic/test/EVM_annotation_template.yml
+transcripts: /groups/itay_mayrose_nosnap/galtol/orig/Panoramic/test/data/orf_coding_all_R64-2-1_20150113.fasta   # all transcripts fasta files, separated by commas (including ref)
+proteins: /groups/itay_mayrose_nosnap/galtol/orig/Panoramic/test/data/orf_trans_all_R64-2-1_20150113.fasta      # all proteins fasta files, separated by commas (including ref)
+annotation_yml_template: /groups/itay_mayrose_nosnap/galtol/orig/Panoramic/test/EVM_annotation_template.yml
 
 # Annotation filtration
 min_protein: 50
 
 # Environment
-queue:
-priority:
-ppn:
-max_ram:
-max_jobs:
-cluster_wrapper: ""
+queue: itaym
+priority: 3
+ppn: 3
+max_ram: 16g
+max_jobs: 200
+cluster_wrapper: "python /groups/itay_mayrose_nosnap/galtol/orig/Panoramic/util/pbs_qsub_snakemake_wrapper.py"
