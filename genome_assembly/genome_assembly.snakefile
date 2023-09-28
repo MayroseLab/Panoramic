@@ -62,9 +62,16 @@ rule all:
         r1=expand(config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}_1_clean_paired.fastq.gz", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()]),
         r2=expand(config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}_2_clean_paired.fastq.gz", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()])
 
+def values_iterator(file_path):
+    with open(file_path, 'r') as file:
+        for line in file:
+            parts = line.strip().split('\t')
+            if len(parts) == 2:
+                yield parts[0], parts[1]
 
 def get_sample(wildcards):
-    return config['samples_info'][wildcards.sample]['ena_ref']
+    if wildcards.sample in config['samples_info'].keys():
+        return config['samples_info'][wildcards.sample]['ena_ref']
 
 kingfisher_git_url = "https://github.com/wwood/kingfisher-download"
 kingfisher_git_stable_commit = "cd7b2ed0c2488f10b91a1cf26ad3728ca26eba09"

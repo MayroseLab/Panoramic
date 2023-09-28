@@ -65,6 +65,12 @@ def init():
     # ensure not duplicate sample names exist
     all_names = list(config['samples_info'].keys()) + list(config['hq_info'].keys())
     assert len(all_names) == len(set(all_names)), "Can't use duplicate sample names!"
+    config['hq_unannotated'] = {s: config['hq_info'][s] for s in config['hq_info'].keys() if
+                                config['hq_info'][s]['annotation_gff'] == '--' and config['hq_info'][s][
+                                    'proteins_fasta'] == '--'}
+    config['hq_info'] = {s: config['hq_info'][s] for s in config['hq_info'].keys() if
+                         config['hq_info'][s]['annotation_gff'] != '--' and config['hq_info'][s][
+                             'proteins_fasta'] != '--'}
 
 init()
 config['samples_info'] = OrderedDict(config['samples_info'])
@@ -120,6 +126,24 @@ def get_hq_sample_genome(wildcards):
 def get_hq_sample_proteins(wildcards):
     return config['hq_info'][wildcards.sample]['proteins_fasta']
 
+def get_unannotated_HQ_genome(wildcards):
+    return config['hq_unannotated'][wildcards.sample]['genome_fasta']
+
+def get_unannotated_location(wildcards):
+    res_str=''
+    for e in config['hq_unannotated'].keys():
+        res_str += f'{e}\t{config["hq_unannotated"][e]["genome_fasta"]}'
+    return res_str
+
+import pandas as pd
+
+def get_hq_info(wildcards):
+    df = pd.DataFrame.from_dict(config['hq_info'], orient='index')
+    df.reset_index(inplace=True)
+    df.rename(columns={'index': 'sample'}, inplace=True)
+    tsv_string = df.to_csv(sep='\t', index=False)
+    return tsv_string
+
 wildcard_constraints:
     sample="[^_]+"
 
@@ -129,25 +153,6 @@ and scaffold all input genomes using
 a dedicated pipeline.
 """
 include: "../genome_assembly/genome_assembly.snakefile"
-
-rule separate_HQ:
-    input:
-        config['hq_genomes_info_file']
-    output:
-        anotated = config["out_dir"] + "/HQ_samples/HQ_pan/" + "HQ_info.tsv",
-        assemblied = config["out_dir"] + "/HQ_samples/HQ_pan/" + "HQ_assemblied.tsv"
-    params:
-        script = utils_dir + "/hq_seprate.py",
-        queue = config['queue'],
-        priority = config['priority'],
-        logs_dir = LOGS_DIR
-    conda:
-        CONDA_ENV_DIR + '/pandas.yml'
-    shell:
-        """
-        python {params.script} {input} {output.assemblied} {output.anotated}
-        """
-
 
 rule simplify_ref_gff_ID:
     """
@@ -195,6 +200,30 @@ rule remove_ref_alt_splicing:
         python {params.longest_trans_script} {input.gff} {output.gff} {input.prot_fasta} {params.min_protein} ID
         """
 
+rule create_annotated_HQ_file:
+    """
+    Create new file with only annotated HQ samples
+    """
+    input:
+        samples = config["hq_info"]
+    output:
+        config["out_dir"] + "/HQ_samples/HQ_annotated"
+    params:
+        queue = config['queue'],
+        priority = config['priority'],
+        logs_dir = LOGS_DIR,
+        ppn = config['ppn']
+#    conda:
+#        CONDA_ENV_DIR + '/pandas.yml'
+    run:
+        """
+        import pandas as pd
+        df = pd.DataFrame.from_dict({input.samples}, orient='index')
+        df.reset_index(inplace=True)
+        df.rename(columns={'index': 'sample'}, inplace=True)
+        df.to_csv({output}, sep='\t', index=False)
+        """
+
 rule iterative_map_to_pan_HQ:
     """
     Iteratively create HQ pan genome
@@ -202,7 +231,7 @@ rule iterative_map_to_pan_HQ:
     adding novel sequences and genes.
     """
     input:
-       samples=config["out_dir"] + "/HQ_samples/HQ_pan/" + "HQ_info.tsv",
+       samples=config["out_dir"] + "/HQ_samples/HQ_annotated",
        ref_genome=config['reference_genome'],
        ref_gff=config["out_dir"] + "/all_samples/ref/" + config['reference_name'] + '_longest_trans_simp.gff',
        ref_proteins=config['reference_proteins']
@@ -260,18 +289,18 @@ rule prep_tsv_for_LQ_samples:
     from assembled LQ samples
     """
     input:
-        hq_samples=config["out_dir"] + "/HQ_samples/HQ_pan/" + "HQ_assemblied.tsv",
         lq_samples=expand(config["out_dir"] + "/per_sample/{sample}/RG_assembly_{ena_ref}/ragtag_output/ragtag.scaffold.fasta", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()])
     output:
         config["out_dir"] + "/all_samples/pan_genome/samples.tsv"
     params:
+        hq_samples=get_unannotated_location,
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR
     shell:
         """
         echo "sample\tgenome_fasta" > {output}
-        tail -n +2 {input.hq_samples} >> {output}
+        echo {params.hq_samples} >> {output}
         echo "{input.lq_samples}" | tr ' ' '\n' | awk '{{split($0,a,"/"); print a[length(a)-3]"\t"$0}}' >> {output}
         """
 
@@ -994,4 +1023,5 @@ rule create_report_html:
         """
         jupyter nbconvert {input} --output {output} --to html --no-prompt --no-input --execute --NotebookClient.timeout=-1 --ExecutePreprocessor.timeout=-1
         """
+
 

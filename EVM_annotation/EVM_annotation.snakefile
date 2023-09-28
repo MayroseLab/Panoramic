@@ -920,3 +920,47 @@ rule extract_fasta_sequences:
         $CONDA_PREFIX/opt/evidencemodeler-1.1.1/EvmUtils/gff3_file_to_proteins.pl {input.gff} {input.fasta} prot > {output.prot}
         $CONDA_PREFIX/opt/evidencemodeler-1.1.1/EvmUtils/gff3_file_to_proteins.pl {input.gff} {input.fasta} cDNA > {output.trans}
         """
+rule annotation_busco:
+    """
+    Run BUSCO on filtered annotation proteins
+    """
+    input:
+        os.path.join(config['out_dir'],'EVM.filter.rename.prot.fasta')
+    output:
+        os.path.join(config['out_dir'],"run_BUSCO/short_summary_BUSCO.txt")
+    params:
+        sample = config['sample_name'],
+        annotation_dir=config['out_dir'],
+        busco_set=config['busco_set'],
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR,
+        ppn=config['ppn']
+    conda:
+        CONDA_ENV_DIR + '/busco.yml'
+    shell:
+        """
+        cd {params.annotation_dir}
+        busco -i {input} -o BUSCO -m proteins -l {params.busco_set} -c {params.ppn} -f
+        """
+
+rule prep_for_orthofinder:
+    """
+    Prepare orthofinder input - simplify
+    fasta record names and put all fasta
+    files into one dir with file names
+    matching genome names.
+    """
+    input:
+        os.path.join(config['out_dir'],"EVM.filter.rename.prot.fasta")
+    output:
+        os.path.join(config['out_dir'],"annotated_for_orthofinder.fasta")
+    params:
+        sample = config['sample_name'],
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    shell:
+        """
+        sed 's/ EVM.*//' {input.fasta} > {output}
+        """
