@@ -72,6 +72,7 @@ def init():
                          config['hq_info'][s]['annotation_gff'] != '--' and config['hq_info'][s][
                              'proteins_fasta'] != '--'}
 
+
 init()
 config['samples_info'] = OrderedDict(config['samples_info'])
 LOGS_DIR = config['out_dir'] + "/logs"
@@ -132,7 +133,7 @@ def get_unannotated_HQ_genome(wildcards):
 def get_unannotated_location(wildcards):
     res_str=''
     for e in config['hq_unannotated'].keys():
-        res_str += f'{e}\t{config["hq_unannotated"][e]["genome_fasta"]}'
+        res_str += f'{e}\t{config["hq_unannotated"][e]["genome_fasta"]}\t'
     return res_str
 
 import pandas as pd
@@ -200,30 +201,27 @@ rule remove_ref_alt_splicing:
         python {params.longest_trans_script} {input.gff} {output.gff} {input.prot_fasta} {params.min_protein} ID
         """
 
-rule create_annotated_HQ_file:
+rule separate_HQ:
     """
     Create new file with only annotated HQ samples
     """
     input:
-        samples = config["hq_info"]
+        config["hq_genomes_info_file"]
     output:
         config["out_dir"] + "/HQ_samples/HQ_annotated"
     params:
+        script=utils_dir + "/separate_HQ.py",
         queue = config['queue'],
         priority = config['priority'],
         logs_dir = LOGS_DIR,
         ppn = config['ppn']
-#    conda:
-#        CONDA_ENV_DIR + '/pandas.yml'
-    run:
+    conda:
+        CONDA_ENV_DIR + '/pandas.yml'
+    shell:
         """
-        import pandas as pd
-        df = pd.DataFrame.from_dict({input.samples}, orient='index')
-        df.reset_index(inplace=True)
-        df.rename(columns={'index': 'sample'}, inplace=True)
-        df.to_csv({output}, sep='\t', index=False)
+        python {params.script} {input} {output}
         """
-
+    
 rule iterative_map_to_pan_HQ:
     """
     Iteratively create HQ pan genome
@@ -300,7 +298,9 @@ rule prep_tsv_for_LQ_samples:
     shell:
         """
         echo "sample\tgenome_fasta" > {output}
-        echo {params.hq_samples} >> {output}
+        if [ -n "{params.hq_samples}" ]; then
+            echo "{params.hq_samples}" | awk '{{split($0, a, " "); for (i=1; i<=NF; i+=2) print a[i] "\t" a[i+1]}}' >> {output}
+        fi
         echo "{input.lq_samples}" | tr ' ' '\n' | awk '{{split($0,a,"/"); print a[length(a)-3]"\t"$0}}' >> {output}
         """
 
@@ -704,6 +704,9 @@ rule sam_to_sorted_bam:
         """
 
 rule index_bam:
+    """
+    Indexing the sorted bam file
+    """
     input:
         config["out_dir"] + "/per_sample/{sample}/map_to_pan_{ena_ref}/{ena_ref}_map_to_pan.sort.bam"
     output:
@@ -762,6 +765,9 @@ rule HQ_sam_to_sorted_bam:
         """
 
 rule HQ_index_bam:
+    """
+    Indexing the sorted bam file
+    """
     input:
         config["out_dir"] + "/HQ_samples/{sample}/map_to_pan/{sample}_vs_pan.sort.bam"
     output:
@@ -1023,5 +1029,6 @@ rule create_report_html:
         """
         jupyter nbconvert {input} --output {output} --to html --no-prompt --no-input --execute --NotebookClient.timeout=-1 --ExecutePreprocessor.timeout=-1
         """
+
 
 

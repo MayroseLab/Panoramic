@@ -69,6 +69,8 @@ def init():
     # ensure not duplicate sample names exist
     all_names = list(config['samples_info'].keys()) + list(config['hq_info'].keys())
     assert len(all_names) == len(set(all_names)), "Can't use duplicate sample names!"
+    config['hq_unannotated'] = {s: config['hq_info'][s] for s in config['hq_info'].keys() if config['hq_info'][s]['annotation_gff'] == '--' and config['hq_info'][s]['proteins_fasta'] == '--'}
+    config['hq_info'] = {s: config['hq_info'][s] for s in config['hq_info'].keys() if config['hq_info'][s]['annotation_gff'] != '--' and config['hq_info'][s]['proteins_fasta'] != '--'}
 
 init()
 config['samples_info'] = OrderedDict(config['samples_info'])
@@ -123,6 +125,24 @@ def get_hq_sample_genome(wildcards):
 
 def get_hq_sample_proteins(wildcards):
     return config['hq_info'][wildcards.sample]['proteins_fasta']
+
+def get_unannotated_HQ_genome(wildcards):
+    return config['hq_unannotated'][wildcards.sample]['genome_fasta']
+
+def get_unannotated_location(wildcards):
+    res_str=''
+    for e in config['hq_unannotated'].keys():
+        res_str += f'{e}\t{config["hq_unannotated"][e]["genome_fasta"]}\t'
+    return res_str
+
+import pandas as pd
+
+def get_hq_info(wildcards):
+    df = pd.DataFrame.from_dict(config['hq_info'], orient='index')
+    df.reset_index(inplace=True)
+    df.rename(columns={'index': 'sample'}, inplace=True)
+    tsv_string = df.to_csv(sep='\t', index=False)
+    return tsv_string
 
 wildcard_constraints:
     sample="[^_]+"
@@ -498,6 +518,27 @@ elif config['assembler'] == 'minia':
             ln {params.out_dir}/assembly_final.contigs.fa {output}
             """
 
+rule separate_HQ:
+    """
+    Create new file with only annotated HQ samples
+    """
+    input:
+        config["hq_genomes_info_file"]
+    output:
+        config["out_dir"] + "/HQ_samples/HQ_annotated"
+    params:
+        script=utils_dir + "/separate_HQ.py",
+        queue = config['queue'],
+        priority = config['priority'],
+        logs_dir = LOGS_DIR,
+        ppn = config['ppn']
+    conda:
+        CONDA_ENV_DIR + '/pandas.yml'
+    shell:
+        """
+        python {params.script} {input} {output}
+        """
+
 rule iterative_map_to_pan_HQ:
     """
     Iteratively create HQ pan genome
@@ -505,7 +546,7 @@ rule iterative_map_to_pan_HQ:
     adding novel sequences and genes.
     """
     input:
-       samples=config['hq_genomes_info_file'],
+       samples=config["out_dir"] + "/HQ_samples/HQ_annotated",
        ref_genome=config['reference_genome'],
        ref_gff=config["out_dir"] + "/all_samples/ref/" + config['reference_name'] + '_longest_trans_simp.gff',
        ref_proteins=config['reference_proteins']
@@ -561,7 +602,7 @@ rule download_db:
     Download the kraken2 database for contamination identification
     """
     output:
-        db_location = directory(config["out_dir"] + "/all_samples/kraken-db")
+       db_location = directory(config["out_dir"] + "/all_samples/kraken-db")
     params:
        db_link=config['contamination_db'],
        queue=config['queue'],
@@ -582,7 +623,7 @@ rule run_kraken:
     """
     input:
         db=config["out_dir"] + '/all_samples/kraken-db',
-        assemblies=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contigs_filter.fasta"
+        assemblies=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contigs.fasta"
     output:
         classification=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contamination_classification",
         report=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contamination_report",
@@ -607,7 +648,7 @@ rule filter_contamination:
     input:
         classification=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contamination_classification",
         report=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contamination_report",
-        assemblies=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contigs_filter.fasta"
+        assemblies=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contigs.fasta"
     output:
         filtered_assemblies=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contigs_no_contamination.fasta",
         contaminations_percent=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contaminations_percent"
@@ -629,17 +670,21 @@ rule prep_tsv_for_LQ_samples:
     from assembled LQ samples
     """
     input:
-        expand(config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contigs_no_contamination.fasta", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()])
+        lq_samples=expand(config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/contigs_no_contamination.fasta", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()])
     output:
         config["out_dir"] + "/all_samples/pan_genome/samples.tsv"
     params:
+        hq_samples=get_unannotated_location,
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR
     shell:
         """
         echo "sample\tgenome_fasta" > {output}
-        echo "{input}" | tr ' ' '\n' | awk '{{split($0,a,"/"); print a[length(a)-2]"\t"$0}}' >> {output}
+        if [ -n "{params.hq_samples}" ]; then
+            echo "{params.hq_samples}" | awk '{{split($0, a, " "); for (i=1; i<=NF; i+=2) print a[i] "\t" a[i+1]}}' >> {output}
+        fi
+        echo "{input.lq_samples}" | tr ' ' '\n' | awk '{{split($0,a,"/"); print a[length(a)-3]"\t"$0}}' >> {output}
         """
 
 rule iterative_map_to_pan_LQ:
@@ -1361,3 +1406,4 @@ rule create_report_html:
         """
         jupyter nbconvert {input} --output {output} --to html --no-prompt --no-input --execute --NotebookClient.timeout=-1 --ExecutePreprocessor.timeout=-1
         """
+
