@@ -405,7 +405,6 @@ if config['transcripts_fasta']:
             priority=config['priority'],
             logs_dir=LOGS_DIR,
             ppn=config['ppn'],
-#            ram=config['max_ram']
         conda:
             CONDA_ENV_DIR + '/pasa.yml'
 
