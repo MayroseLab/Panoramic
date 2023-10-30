@@ -16,6 +16,11 @@ trimming_modules: "SLIDINGWINDOW:5:15 MINLEN:40"
 merge_min_overlap: 10
 merge_max_mismatch_ratio: 0.2
 
+# Detect unmapped reads
+max_mapq: 10
+min_mismatch: 8
+max_qlen: 80
+
 # Assembly
 assembler: spades
 min_length: 500
