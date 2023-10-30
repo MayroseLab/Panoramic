@@ -27,15 +27,6 @@ def choose_gene_name(row):
     return "PanGene%s" %(row.name - first_pan_index + 1)
 
 df = pd.read_csv(in_orthogroups_tsv, sep='\t', index_col='Orthogroup')
-# remove _LQ, _HQ, _REF from genome names
-suffixes = ['_LQ', '_HQ', '_REF']
-new_cols = []
-#for col in df.columns:
-#  for suff in suffixes:
-#    if col.endswith(suff):
-#      new_cols.append(col.replace(suff, ''))
-#df.columns = new_cols
-
 # give each orthogroup a gene name
 df = df.rename(columns={ref_name+"_REF": ref_name})
 df.sort_values(by = ref_name, inplace=True)

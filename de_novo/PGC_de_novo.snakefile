@@ -106,17 +106,15 @@ def get_sample(wildcards):
     return config['samples_info'][wildcards.sample]['ena_ref']
 
 def get_hq_sample_gff(wildcards):
-    info = config['hq_info'][wildcards.sample]['annotation_gff']
-#    return info if info != '--' else None
-    return info
+    return config['hq_info'][wildcards.sample]['annotation_gff']
+    
 
 def get_hq_sample_genome(wildcards):
     return config['hq_info'][wildcards.sample]['genome_fasta']
 
 def get_hq_sample_proteins(wildcards):
-    info = config['hq_info'][wildcards.sample]['proteins_fasta']
-#    return info if info != '--' else None
-    return info
+    return config['hq_info'][wildcards.sample]['proteins_fasta']
+    
 
 def get_unannotated_HQ_genome(wildcards):
     return config['hq_unannotated'][wildcards.sample]['genome_fasta']
@@ -338,8 +336,7 @@ rule LQ_EVM_annotation:
         priority=config['priority'],
         jobscript=utils_dir + '/jobscript.sh',
         dependencies_dir=config['out_dir'] + '/.snakemake/conda',
-        logs_dir=LOGS_DIR,
-#        ram=config['max_ram']
+        logs_dir=LOGS_DIR
     conda:
         CONDA_ENV_DIR + '/snakemake.yml'
     shell:
@@ -535,7 +532,7 @@ rule copy_annotated_HQ_to_orthofinder:
 
 rule copy_unannotated_HQ_to_orthofinder:
     input:
-        config["out_dir"] + "/HQ_samples/{sample}/annotation/EVM.filter.rename.prot.fasta" # todo annotated_for_orthofinder.fasta?
+        config["out_dir"] + "/HQ_samples/{sample}/annotation/EVM.filter.rename.prot.fasta" 
     output:
         config["out_dir"] + "/all_samples/orthofinder/{sample}.fasta"
     params:
