@@ -1,21 +1,21 @@
 name: PGC_de_novo
 # input/output
-samples_info_file: 
-hq_genomes_info_file: 
+samples_info_file:
+hq_genomes_info_file:
 out_dir:
 
 # Reference
-reference_name: 
-reference_genome: 
-reference_proteins: 
-reference_annotation: 
-reference_cds: 
+reference_name:
+reference_genome:
+reference_proteins:
+reference_annotation:
+reference_cds:
 reference_transcripts:
 
 # Reads pre processing (RPP)
 trimming_modules: "SLIDINGWINDOW:5:15 MINLEN:40"
- merge_min_overlap: 10
- merge_max_mismatch_ratio: 0.2
+merge_min_overlap: 10
+merge_max_mismatch_ratio: 0.2
 
 # Assembly
 assembler: spades
