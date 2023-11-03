@@ -62,12 +62,6 @@ rule all:
         r1=expand(config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}_1_clean_paired.fastq.gz", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()]),
         r2=expand(config["out_dir"] + "/per_sample/{sample}/RPP_{ena_ref}/{ena_ref}_2_clean_paired.fastq.gz", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()])
 
-def values_iterator(file_path):
-    with open(file_path, 'r') as file:
-        for line in file:
-            parts = line.strip().split('\t')
-            if len(parts) == 2:
-                yield parts[0], parts[1]
 
 def get_sample(wildcards):
     if wildcards.sample in config['samples_info'].keys():
@@ -119,10 +113,13 @@ rule download_fastq:
         CONDA_ENV_DIR + '/kingfisher.yml'
     shell:
         """
+        time=$(date +%s)
         sleep_time=$((RANDOM % 60 + 10))
         sleep $sleep_time
         cd {params.sample_out_dir}
-        {input.exe} get -m ena-ascp -r {params.ena_ref}
+        {input.exe} get -m ena-ascp ena-ftp -r {params.ena_ref}
+        time=$(($(date +%s)-time))
+        echo "Download took $time seconds!"
         """
 
 rule quality_trimming:

@@ -1,3 +1,7 @@
+"""
+The code reads high-quality (HQ) data from a TSV file, filters it based on HQ samples that are fully annotated, and saves the fully annotated HQ samples into a new TSV file.
+"""
+
 import sys
 import pandas as pd
 

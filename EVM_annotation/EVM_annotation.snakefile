@@ -407,7 +407,6 @@ if config['transcripts_fasta']:
             ppn=config['ppn'],
         conda:
             CONDA_ENV_DIR + '/pasa.yml'
-
         shell:
             """
             cd {params.exec_dir}
