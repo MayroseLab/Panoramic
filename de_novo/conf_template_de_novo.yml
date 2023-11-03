@@ -27,8 +27,8 @@ contamination_db: "https://genome-idx.s3.amazonaws.com/kraken/k2_standard_16gb_2
 contamination_confidence: 0.8
 
 # annotation
-transcripts:  # all transcripts fasta files, separated by commas (including ref)
-proteins:  # all proteins fasta files, separated by commas (including ref)
+transcripts:    # all transcripts fasta files, separated by commas (including ref)
+proteins:    # all proteins fasta files, separated by commas (including ref)
 annotation_yml_template:
 
 # Annotation filtration
