@@ -28,7 +28,7 @@ contamination_confidence: 0.8
 
 # annotation
 transcripts:    # all transcripts fasta files, separated by commas (including ref)
-proteins:    # all proteins fasta files, separated by commas (including ref)
+proteins:       # all proteins fasta files, separated by commas (including ref)
 annotation_yml_template:
 
 # Annotation filtration
