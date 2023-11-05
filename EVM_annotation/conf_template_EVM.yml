@@ -34,6 +34,9 @@ proteins_weight:
 segment_size: 5000000
 overlap_size: 20000
 
+# Busco information
+busco_set: <BUSCO_SET>
+
 # Split chimeras
 split_chimeras: 1       # 1 - run chimeraBuster, 0 -don't run
 chimeraBuster_dir:

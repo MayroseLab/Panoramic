@@ -1,8 +1,8 @@
 name: PASA
 channels:
-  - bioconda
   - conda-forge
+  - bioconda
 dependencies:
   - pasa=2.4.1
-  - blat=36
-  - transdecoder=5.5.0
+  - r-ggplot2=3.4.4
+  - bioconductor-seqlogo=1.66.0

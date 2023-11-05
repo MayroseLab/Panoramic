@@ -64,7 +64,8 @@ rule all:
 
 
 def get_sample(wildcards):
-    return config['samples_info'][wildcards.sample]['ena_ref']
+    if wildcards.sample in config['samples_info'].keys():
+        return config['samples_info'][wildcards.sample]['ena_ref']
 
 kingfisher_git_url = "https://github.com/wwood/kingfisher-download"
 kingfisher_git_stable_commit = "cd7b2ed0c2488f10b91a1cf26ad3728ca26eba09"
@@ -112,10 +113,13 @@ rule download_fastq:
         CONDA_ENV_DIR + '/kingfisher.yml'
     shell:
         """
+        time=$(date +%s)
         sleep_time=$((RANDOM % 60 + 10))
         sleep $sleep_time
         cd {params.sample_out_dir}
-        {input.exe} get -m ena-ascp -r {params.ena_ref}
+        {input.exe} get -m ena-ascp ena-ftp -r {params.ena_ref}
+        time=$(($(date +%s)-time))
+        echo "Download took $time seconds!"
         """
 
 rule quality_trimming:
@@ -161,7 +165,7 @@ rule merge_reads:
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR,
-        ppn=config['ppn']
+        ppn=config['ppn']+1
     conda:
         CONDA_ENV_DIR + '/flash.yml'
     shell:

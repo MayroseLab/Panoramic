@@ -59,6 +59,10 @@ def init():
     # ensure not duplicate sample names exist
     all_names = list(config['samples_info'].keys()) + list(config['hq_info'].keys())
     assert len(all_names) == len(set(all_names)), "Can't use duplicate sample names!"
+    #  split annotated and unannotated HQ
+    config['hq_unannotated'] = {s: config['hq_info'][s] for s in config['hq_info'].keys() if config['hq_info'][s]['annotation_gff'] == '--' and config['hq_info'][s]['proteins_fasta'] == '--'}
+    config['hq_info'] = {s: config['hq_info'][s] for s in config['hq_info'].keys() if config['hq_info'][s]['annotation_gff'] != '--' and config['hq_info'][s]['proteins_fasta'] != '--'}
+
 
 init()
 LOGS_DIR = config['out_dir'] + "/logs"
@@ -103,12 +107,31 @@ def get_sample(wildcards):
 
 def get_hq_sample_gff(wildcards):
     return config['hq_info'][wildcards.sample]['annotation_gff']
+    
 
 def get_hq_sample_genome(wildcards):
     return config['hq_info'][wildcards.sample]['genome_fasta']
 
 def get_hq_sample_proteins(wildcards):
     return config['hq_info'][wildcards.sample]['proteins_fasta']
+    
+
+def get_unannotated_HQ_genome(wildcards):
+    return config['hq_unannotated'][wildcards.sample]['genome_fasta']
+
+import pandas as pd
+
+def unannotated_HQ_list(hq_file):
+    data = pd.read_csv(hq_file, sep="\t")
+    samples = data[(data.annotation_gff == "--") & (data.proteins_fasta == "--")]['sample'].to_list()
+    samples = [s.replace('_','-') for s in samples]
+    return samples
+
+def annotated_HQ_list(hq_file):
+    data = pd.read_csv(hq_file, sep="\t")
+    samples = data[~((data.annotation_gff == "--") & (data.proteins_fasta == "--"))]['sample'].to_list()
+    samples = [s.replace('_','-') for s in samples]
+    return samples
 
 wildcard_constraints:
     sample="[^_]+"
@@ -156,8 +179,42 @@ rule aggregate_annotation_evidence:
         cat {params.trans_files} > {output.trans}
         cat {params.prot_files} > {output.prot}
         """
-    
-rule prep_annotation_yaml:
+
+rule prep_HQ_annotation_yaml:
+    input:
+        genome=get_unannotated_HQ_genome,
+        ref_genome=config['reference_genome'],
+        ref_gff=config["out_dir"] + "/all_samples/ref/" + config['reference_name'] + '_longest_trans.gff',
+        ref_cds=config['reference_cds'],
+        transcripts=config["out_dir"] + "/all_samples/all_transcripts.fasta",
+        proteins=config["out_dir"] + "/all_samples/all_proteins.fasta",
+        yml_template=config['annotation_yml_template']
+    output:
+        config["out_dir"] + "/HQ_samples/{sample}/annotation/annotation.yml"
+    params:
+        annotation_dir=config["out_dir"] + "/HQ_samples/{sample}/annotation/",
+        busco_set=config['busco_set'],
+        queue=config['queue'],
+        priority=config['priority'],
+        ppn_=config['ppn'],
+        max_ram_=config['max_ram'],
+        max_jobs_=config['max_jobs'] / len(config['samples_info']),
+        logs_dir=LOGS_DIR
+    shell:
+        """
+        if [ -s {input.transcripts} ]
+        then trans={input.transcripts}
+        else trans=''
+        fi
+        if [ -s {input.proteins} ]
+        then prot={input.proteins}
+        else prot=''
+        fi
+        sed -e 's@<INPUT_GENOME>@{input.genome}@' -e 's@<SAMPLE_NAME>@{wildcards.sample}@' -e 's@<OUT_DIR>@{params.annotation_dir}@' -e 's@<REFERENCE_CDS>@{input.ref_cds}@' -e 's@<REFERENCE_LIFTOVER>@1@' -e 's@<REFERENCE_GFF>@{input.ref_gff}@' -e 's@<REFERENCE_FASTA>@{input.ref_genome}@' -e "s@<TRANSCRIPTS_FASTA>@$trans@" -e "s@<PROTEINS_FASTA>@$prot@" -e 's@<QUEUE>@{params.queue}@' -e 's@<PRIORITY>@{params.priority}@' -e 's@<PPN>@{params.ppn_}@' -e 's@<MAX_RAM>@{params.max_ram_}@' -e 's@<MAX_JOBS>@{params.max_jobs_}@' -e 's@<BUSCO_SET>@{params.busco_set}@'  {input.yml_template} > {output}
+        """
+
+
+rule LQ_prep_annotation_yaml:
     """
     Prepare yml config for annotation
     pipeline of each sample
@@ -174,6 +231,7 @@ rule prep_annotation_yaml:
         config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/annotation.yml"
     params:
         annotation_dir=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/",
+        busco_set=config['busco_set'],
         queue=config['queue'],
         priority=config['priority'],
         ppn_=config['ppn'],
@@ -190,7 +248,7 @@ rule prep_annotation_yaml:
         then prot={input.proteins}
         else prot=''
         fi
-        sed -e 's@<INPUT_GENOME>@{input.genome}@' -e 's@<SAMPLE_NAME>@{wildcards.sample}@' -e 's@<OUT_DIR>@{params.annotation_dir}@' -e 's@<REFERENCE_CDS>@{input.ref_cds}@' -e 's@<REFERENCE_LIFTOVER>@1@' -e 's@<REFERENCE_GFF>@{input.ref_gff}@' -e 's@<REFERENCE_FASTA>@{input.ref_genome}@' -e "s@<TRANSCRIPTS_FASTA>@$trans@" -e "s@<PROTEINS_FASTA>@$prot@" -e 's@<QUEUE>@{params.queue}@' -e 's@<PRIORITY>@{params.priority}@' -e 's@<PPN>@{params.ppn_}@' -e 's@<MAX_RAM>@{params.max_ram_}@' -e 's@<MAX_JOBS>@{params.max_jobs_}@' {input.yml_template} > {output}
+        sed -e 's@<INPUT_GENOME>@{input.genome}@' -e 's@<SAMPLE_NAME>@{wildcards.sample}@' -e 's@<OUT_DIR>@{params.annotation_dir}@' -e 's@<REFERENCE_CDS>@{input.ref_cds}@' -e 's@<REFERENCE_LIFTOVER>@1@' -e 's@<REFERENCE_GFF>@{input.ref_gff}@' -e 's@<REFERENCE_FASTA>@{input.ref_genome}@' -e "s@<TRANSCRIPTS_FASTA>@$trans@" -e "s@<PROTEINS_FASTA>@$prot@" -e 's@<QUEUE>@{params.queue}@' -e 's@<PRIORITY>@{params.priority}@' -e 's@<PPN>@{params.ppn_}@' -e 's@<MAX_RAM>@{params.max_ram_}@' -e 's@<MAX_JOBS>@{params.max_jobs_}@' -e 's@<BUSCO_SET>@{params.busco_set}@' {input.yml_template} > {output}
         """
 
 random_sample = list(config['samples_info'].keys())[0]
@@ -230,7 +288,33 @@ rule install_EVM_dependencies:
         touch {output}
         """
 
-rule EVM_annotation:
+rule HQ_EVM_annotation:
+    input:
+        conf=config["out_dir"] + "/HQ_samples/{sample}/annotation/annotation.yml",
+        dep=config["out_dir"] + '/EVM_dependencies.done'
+    output:
+        config["out_dir"] + "/HQ_samples/{sample}/annotation/EVM.filter.rename.gff3",
+        config["out_dir"] + "/HQ_samples/{sample}/annotation/EVM.filter.rename.prot.fasta",
+        config["out_dir"] + "/HQ_samples/{sample}/annotation/EVM.filter.rename.trans.fasta"
+    params:
+        EVM_annotation_snakefile=annotation_pipeline_dir + '/EVM_annotation.snakefile',
+        queue=config['queue'],
+        jobs=int(config['max_jobs']/len(config['samples_info'])),
+        annotation_dir=config["out_dir"] + "/HQ_samples/{sample}/annotation/",
+        cluster_param=cluster_param,
+        priority=config['priority'],
+        jobscript=utils_dir + '/jobscript.sh',
+        dependencies_dir=config['out_dir'] + '/.snakemake/conda',
+        logs_dir=LOGS_DIR
+    conda:
+        CONDA_ENV_DIR + '/snakemake.yml'
+    shell:
+        """
+        cd {params.annotation_dir}
+        snakemake -s {params.EVM_annotation_snakefile} --configfile {input.conf} {params.cluster_param} -j {params.jobs} --latency-wait 60 --restart-times 3 --jobscript {params.jobscript} --keep-going -p --use-conda --ignore-incomplete --conda-prefix {params.dependencies_dir}
+        """
+
+rule LQ_EVM_annotation:
     """
     Run the EVM annotation pipeline,
     including liftover, ab-initio and
@@ -259,50 +343,6 @@ rule EVM_annotation:
         """
         cd {params.annotation_dir}
         snakemake -s {params.EVM_annotation_snakefile} --configfile {input.conf} {params.cluster_param} -j {params.jobs} --latency-wait 60 --restart-times 3 --jobscript {params.jobscript} --keep-going -p --use-conda --ignore-incomplete --conda-prefix {params.dependencies_dir}
-        """
-
-rule annotation_busco:
-    """
-    Run BUSCO on filtered annotation proteins
-    """
-    input:
-        config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/EVM.filter.rename.prot.fasta"
-    output:
-        config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/run_BUSCO/short_summary_BUSCO.txt"
-    params:
-        annotation_dir=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}",
-        busco_set=config['busco_set'],
-        queue=config['queue'],
-        priority=config['priority'],
-        logs_dir=LOGS_DIR,
-        ppn=config['ppn']
-    conda:
-        CONDA_ENV_DIR + '/busco.yml'
-    shell:
-        """
-        cd {params.annotation_dir}
-        busco -i {input} -o BUSCO -m proteins -l {params.busco_set} -c {params.ppn} -f
-        """
-
-rule prep_for_orthofinder:
-    """
-    Prepare orthofinder input - simplify
-    fasta record names and put all fasta
-    files into one dir with file names
-    matching genome names.
-    """
-    input:
-        fasta=config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/EVM.filter.rename.prot.fasta",
-    output:
-        config["out_dir"] + "/all_samples/orthofinder/{sample}_{ena_ref}_LQ.fasta"
-    params:
-        of_dir=config["out_dir"] + "/all_samples/orthofinder",
-        queue=config['queue'],
-        priority=config['priority'],
-        logs_dir=LOGS_DIR
-    shell:
-        """
-        sed 's/ EVM.*//' {input.fasta} > {output}
         """
 
 rule remove_ref_alt_splicing:
@@ -394,7 +434,7 @@ rule remove_hq_sample_alt_splicing:
         python {params.longest_trans_script} {input} {output}
         """
 
-rule get_hq_sample_proteins:
+rule get_hq_proteins:
     """
     Filter HQ samples proteins according
     to filtered gff and put the new file
@@ -404,7 +444,7 @@ rule get_hq_sample_proteins:
         fasta=get_hq_sample_proteins,
         gff=config["out_dir"] + "/HQ_samples/{sample}/{sample}_longest_trans.gff"
     output:
-        config["out_dir"] + "/all_samples/orthofinder/{sample}_HQ.fasta"
+        config["out_dir"] + "/HQ_samples/{sample}/{sample}_HQ.fasta"
     params:
         filter_fasta_script=utils_dir + '/filter_fasta_by_gff.py',
         min_protein=config['min_protein'],
@@ -462,6 +502,48 @@ rule get_ref_transcripts:
         python {params.filter_fasta_script} {input.gff} {input.fasta} {output} mRNA ID
         """
 
+rule copy_LQ_to_orthofinder:
+    input:
+        config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/EVM.filter.rename.prot.fasta"
+    output:
+        config["out_dir"] + "/all_samples/orthofinder/{sample}_{ena_ref}.fasta"
+    params:
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    shell:
+        """
+        ln -s {input} {output}
+        """
+
+rule copy_annotated_HQ_to_orthofinder:
+    input:
+        config["out_dir"] + "/HQ_samples/{sample}/{sample}_HQ.fasta"
+    output:
+        config["out_dir"] + "/all_samples/orthofinder/{sample}.fasta"
+    params:
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    shell:
+        """
+        ln -s {input} {output}
+        """
+
+rule copy_unannotated_HQ_to_orthofinder:
+    input:
+        config["out_dir"] + "/HQ_samples/{sample}/annotation/EVM.filter.rename.prot.fasta" 
+    output:
+        config["out_dir"] + "/all_samples/orthofinder/{sample}.fasta"
+    params:
+        queue=config['queue'],
+        priority=config['priority'],
+        logs_dir=LOGS_DIR
+    shell:
+        """
+        ln -s {input} {output}
+        """
+
 rule orthofinder:
     """
     Run OrthoFinder2 on all proteins
@@ -469,9 +551,10 @@ rule orthofinder:
     initial orthogroups
     """
     input:
-        expand(config["out_dir"] + "/all_samples/orthofinder/{sample}_{ena_ref}_LQ.fasta", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()]),
-        config["out_dir"] + "/all_samples/orthofinder/" + config['reference_name'] + '_REF.fasta',
-        expand(config["out_dir"] + "/all_samples/orthofinder/{sample}_HQ.fasta", sample=config['hq_info'].keys())
+        lq = expand(config["out_dir"] + "/all_samples/orthofinder/{sample}_{ena_ref}.fasta",zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()]),
+        annotated_hq = expand(config["out_dir"] + "/all_samples/orthofinder/{sample}.fasta",sample=annotated_HQ_list(config['hq_genomes_info_file'])),
+        unannotated_hq = expand(config["out_dir"] + "/all_samples/orthofinder/{sample}.fasta",sample=unannotated_HQ_list(config['hq_genomes_info_file'])),
+        ref=config["out_dir"] + "/all_samples/orthofinder/" + config['reference_name'] + '_REF.fasta'
     output:
         config["out_dir"] + "/all_samples/orthofinder/OrthoFinder/Results_orthofinder/Orthogroups/Orthogroups.tsv"
     params:
@@ -548,7 +631,7 @@ rule create_all_proteins_fasta:
     """
     input:
         lq=expand(config["out_dir"] + "/per_sample/{sample}/annotation_{ena_ref}/EVM.filter.rename.prot.fasta", zip, sample=config['samples_info'].keys(),ena_ref=[x['ena_ref'] for x in config['samples_info'].values()]),
-        hq=expand(config["out_dir"] + "/all_samples/orthofinder/{sample}_HQ.fasta", sample=config['hq_info'].keys()),
+        hq=expand(config["out_dir"] + "/HQ_samples/{sample}/{sample}_HQ.fasta", sample=config['hq_info'].keys()),
         ref=config["out_dir"] + "/all_samples/orthofinder/" + config['reference_name'] + '_REF.fasta'
     output:
         config["out_dir"] + "/all_samples/pan_genome/all_proteins.fasta"
@@ -714,3 +797,4 @@ rule create_report_html:
         """
         jupyter nbconvert {input} --output {output} --to html --no-prompt --no-input --execute --NotebookClient.timeout=-1 --ExecutePreprocessor.timeout=-1
         """
+
