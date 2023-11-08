@@ -113,14 +113,11 @@ rule download_fastq:
         CONDA_ENV_DIR + '/kingfisher.yml'
     shell:
         """
-        time=$(date +%s)
         sleep_time=$((RANDOM % 60 + 10))
         sleep $sleep_time
         cd {params.sample_out_dir}
         {input.exe} get -m ena-ascp ena-ftp -r {params.ena_ref}
-        time=$(($(date +%s)-time))
-        echo "Download took $time seconds!"
-        """
+       """
 
 rule quality_trimming:
     """
