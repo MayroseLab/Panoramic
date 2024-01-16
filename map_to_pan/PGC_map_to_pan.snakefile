@@ -65,7 +65,7 @@ def init():
     # ensure not duplicate sample names exist
     all_names = list(config['samples_info'].keys()) + list(config['hq_info'].keys())
     assert len(all_names) == len(set(all_names)), "Can't use duplicate sample names!"
-
+    
 init()
 config['samples_info'] = OrderedDict(config['samples_info'])
 LOGS_DIR = config['out_dir'] + "/logs"
