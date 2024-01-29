@@ -22,6 +22,10 @@ assembler: spades
 min_length: 500
 busco_set:
 
+# contamination filtration
+contamination_db: "https://genome-idx.s3.amazonaws.com/kraken/k2_standard_16gb_20230605.tar.gz"
+contamination_confidence: 0.8
+
 # annotation
 transcripts:    # all transcripts fasta files, separated by commas (including ref)
 proteins:       # all proteins fasta files, separated by commas (including ref)
