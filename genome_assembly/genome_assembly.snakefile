@@ -41,11 +41,7 @@ def init():
                 f"{name}_1.fastq.gz" in files and f"{name}_2.fastq.gz" in files
                 for files in (os.listdir(v['dir']),)
                 for name in set(file.split('_')[0] for file in files)
-            ), f"One or more file pairs not found in directory: {v['dir']}"
-
-    # If no assertion errors are raised, the check passed for all directories and file pairs.
-    print("All directories contain the specified file pairs.")
-
+            ), f"Expected {v['dir']}/{name}_1.fastq.gz and {v['dir']}/{name}_2.fastq.gz"
 
     # ensure not duplicate sample names exist
     all_names = list(config['samples_info'].keys())
