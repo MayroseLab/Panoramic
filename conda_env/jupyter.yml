@@ -10,4 +10,4 @@ dependencies:
   - plotly=4.13.0
   - biopython=1.77
   - scipy=1.4.1
-  - importlib_metadata=6.8.0
+  - importlib_metadata=7.0.1

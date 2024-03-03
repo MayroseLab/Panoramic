@@ -66,6 +66,21 @@ def init():
     # convert '_' to '-' in sample names
     config['samples_info'] = {s.replace('_','-'): config['samples_info'][s] for s in config['samples_info']}
     config['hq_info'] = {s.replace('_','-'): config['hq_info'][s] for s in config['hq_info']}
+    config['samples_info'] = {k: ({'dir': v['ena_ref'], 'ena_ref': i + 1} if 'ena_ref' in v and os.path.isdir(v['ena_ref']) else v) for i, (k, v) in enumerate(config['samples_info'].items())}
+
+    # Iterate over samples_info items
+    for _, v in config['samples_info'].items():
+        if 'dir' in v:
+            # Check if the directory exists
+            assert os.path.isdir(v['dir']), f"Directory does not exist: {v['dir']}"
+
+        # Check if the file pair exists in the directory
+            assert any(
+                f"{name}_1.fastq.gz" in files and f"{name}_2.fastq.gz" in files
+                for files in (os.listdir(v['dir']),)
+                for name in set(file.split('_')[0] for file in files)
+            ), f"Expected {v['dir']}/{name}_1.fastq.gz and {v['dir']}/{name}_2.fastq.gz"
+
     # ensure not duplicate sample names exist
     all_names = list(config['samples_info'].keys()) + list(config['hq_info'].keys())
     assert len(all_names) == len(set(all_names)), "Can't use duplicate sample names!"
@@ -117,6 +132,10 @@ rule all_iterative_assembly:
 def get_sample(wildcards):
     return config['samples_info'][wildcards.sample]['ena_ref']
 
+def get_directory(wildcards):
+    sample_info = config['samples_info'].get(wildcards.sample, {}) 
+    return sample_info.get('dir', None)
+
 def get_hq_sample_gff(wildcards):
     return config['hq_info'][wildcards.sample]['annotation_gff']
 
@@ -147,42 +166,18 @@ def get_hq_info(wildcards):
 wildcard_constraints:
     sample="[^_]+"
 
-kingfisher_git_url = "https://github.com/wwood/kingfisher-download"
-kingfisher_git_stable_commit = "cd7b2ed0c2488f10b91a1cf26ad3728ca26eba09"
 
-rule fetch_kingfisher:
+rule import_fastq:
     """
-    Get kingfisher code
+    Download reads data from ENA or create symbolic link from exsisting locations
     """
-    output:
-        config["out_dir"] + "/kingfisher-download/bin/kingfisher"
-    params:
-        kingfisher_git_url=kingfisher_git_url,
-        out_dir=config["out_dir"] + "/kingfisher-download/",
-        kingfisher_git_stable_commit=kingfisher_git_stable_commit,
-        queue=config['queue'],
-        priority=config['priority'],
-        logs_dir=LOGS_DIR
-    shell:
-        """
-        rm -rf {params.out_dir}
-        git clone {params.kingfisher_git_url} {params.out_dir}
-        cd {params.out_dir}
-        git checkout {params.kingfisher_git_stable_commit}
-        """
-
-rule download_fastq:
-    """
-    Download reads data from ENA
-    """
-    input:
-        exe=config["out_dir"] + "/kingfisher-download/bin/kingfisher"
     output:
         config["out_dir"] + "/per_sample/{sample}/data/{ena_ref}_1.fastq.gz",
         config["out_dir"] + "/per_sample/{sample}/data/{ena_ref}_2.fastq.gz"
     params:
         sample_out_dir=config["out_dir"] + "/per_sample/{sample}/data",
         ena_ref=get_sample,
+        source=get_directory,
         queue=config['queue'],
         priority=config['priority'],
         logs_dir=LOGS_DIR
@@ -193,7 +188,13 @@ rule download_fastq:
         sleep_time=$((RANDOM % 60 + 10))
         sleep $sleep_time
         cd {params.sample_out_dir}
-        {input.exe} get -m ena-ascp -r {params.ena_ref}
+        if [ -d {params.source} ]
+        then
+            ln -s {params.source}/*_1.fastq.gz {params.ena_ref}_1.fastq.gz
+            ln -s {params.source}/*_2.fastq.gz {params.ena_ref}_2.fastq.gz
+        else
+            kingfisher get -m ena-ascp ena-ftp -r {params.ena_ref}
+        fi
         """
 
 rule quality_trimming:

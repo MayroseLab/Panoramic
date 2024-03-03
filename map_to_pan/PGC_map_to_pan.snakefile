@@ -73,6 +73,7 @@ def init():
                              'proteins_fasta'] != '--'}
 
 
+
 init()
 config['samples_info'] = OrderedDict(config['samples_info'])
 LOGS_DIR = config['out_dir'] + "/logs"
