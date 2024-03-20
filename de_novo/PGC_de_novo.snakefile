@@ -180,6 +180,11 @@ rule aggregate_annotation_evidence:
         cat {params.prot_files} > {output.prot}
         """
 
+def div_by_0_return_1(x,y):
+    if y == 0:
+        return 1
+    return x/y
+
 rule prep_HQ_annotation_yaml:
     input:
         genome=get_unannotated_HQ_genome,
@@ -198,7 +203,7 @@ rule prep_HQ_annotation_yaml:
         priority=config['priority'],
         ppn_=config['ppn'],
         max_ram_=config['max_ram'],
-        max_jobs_=config['max_jobs'] / len(config['hq_info']),
+        max_jobs_=div_by_0_return_1(config['max_jobs'] , len(config['hq_info'])),
         logs_dir=LOGS_DIR
     shell:
         """
@@ -236,7 +241,7 @@ rule LQ_prep_annotation_yaml:
         priority=config['priority'],
         ppn_=config['ppn'],
         max_ram_=config['max_ram'],
-        max_jobs_=config['max_jobs']/len(config['samples_info']),
+        max_jobs_=div_by_0_return_1(config['max_jobs'] , len(config['samples_info'])),
         logs_dir=LOGS_DIR
     shell:
         """
