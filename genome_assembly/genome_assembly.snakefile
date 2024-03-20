@@ -205,6 +205,7 @@ if config['assembler'] == 'spades':
         params:
             out_dir=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}",
             ppn=config['ppn'],
+            ram=config['max_ram'],
             queue=config['queue'],
             priority=config['priority'],
             logs_dir=LOGS_DIR
@@ -273,6 +274,7 @@ elif config['assembler'] == 'minia':
         params:
             out_dir=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}",
             ppn=config['ppn'],
+            ram=config['max_ram'],
             queue=config['queue'],
             priority=config['priority'],
             logs_dir=LOGS_DIR
@@ -299,6 +301,7 @@ elif config['assembler'] == 'megahit':
         params:
             out_dir=config["out_dir"] + "/per_sample/{sample}/assembly_{ena_ref}/megahit_out",
             ppn=config['ppn'],
+            ram=config['max_ram'],
             queue=config['queue'],
             priority=config['priority'],
             logs_dir=LOGS_DIR
