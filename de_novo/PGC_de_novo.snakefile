@@ -198,7 +198,7 @@ rule prep_HQ_annotation_yaml:
         priority=config['priority'],
         ppn_=config['ppn'],
         max_ram_=config['max_ram'],
-        max_jobs_=config['max_jobs'] / len(config['samples_info']),
+        max_jobs_=config['max_jobs'] / len(config['hq_info']),
         logs_dir=LOGS_DIR
     shell:
         """
